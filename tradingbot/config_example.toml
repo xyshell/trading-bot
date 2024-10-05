@@ -1,0 +1,40 @@
+[general]
+# db_url = "sqlite:///D:\\tradingbot.db" # override path to create local db
+# http_proxy = "http://127.0.0.1:7890"
+# https_proxy = "http://127.0.0.1:7890"
+
+# ---------------------------------  Data settings ---------------------------------
+
+[source.binance]
+api_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+api_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# ---------------------------------  Exchange settings ---------------------------------
+
+[exchange.ccxt]
+name = "okx"
+api_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+secret_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# ---------------------------------  Logging settings ---------------------------------
+
+[logging]
+version = 1
+disable_existing_loggers = false
+
+[logging.formatters]
+simple = { format = "%(asctime)s [%(levelname)s] %(name)s <%(filename)s:%(lineno)d>: %(message)s", datefmt = "%Y-%m-%d %H:%M:%S" }
+
+[logging.handlers]
+console = { class = "logging.StreamHandler", level = "DEBUG", formatter = "simple", stream = "ext://sys.stdout" }
+file = { class = "logging.handlers.TimedRotatingFileHandler", level = "INFO", formatter = "simple", filename = "tradingbot.log", when = "midnight", encoding = "utf8" }
+
+[logging.loggers]
+tradingbot = { level = "INFO", handlers = [
+    "console",
+    "file",
+], propagate = false }
+
+[logging.root]
+level = "INFO"
+handlers = ["console"]

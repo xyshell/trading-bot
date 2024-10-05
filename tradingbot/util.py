@@ -1,0 +1,91 @@
+import contextlib
+import hashlib
+import types
+import functools
+import sqlalchemy as sa
+import pandas as pd
+
+import pydantic
+
+validate = pydantic.validate_call(config=dict(arbitrary_types_allowed=True))
+
+
+TYPE_MAPPING = {float: sa.Float, int: sa.Integer, str: sa.String, pd.Timestamp: sa.DateTime}
+
+
+def dispatch(func):
+    _registry = {}
+
+    def register(
+        key: tuple[str, str],  # key[1] is passed to the function as the first argument
+    ):
+        if key in _registry:
+            raise KeyError(f"{key} is already registered in {func.__name__}._registry")
+
+        def wrapper(func_):
+            # if validate: func_ = validate(func_)
+            _registry[key] = func_
+            return func_
+
+        return wrapper
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if len(args) < 2:
+            raise TypeError(f"{func.__name__}() got invalid {args=} for retrieving 'key' in _registry")
+        kls_name = args[0].__qualname__ if isinstance(args[0], type) else args[0].__class__.__qualname__
+        key = (kls_name, args[1])
+        return _registry[key](*args, **kwargs) if key in _registry else func(*args, **kwargs)
+
+    wrapper.register = register
+    wrapper._registry = types.MappingProxyType(_registry)
+    return wrapper
+
+
+def hash_pd(obj: pd.Index | pd.Series | pd.DataFrame, limit: int = 256) -> str:
+    return hashlib.sha256(pd.util.hash_pandas_object(obj).to_numpy()).hexdigest()[:limit]
+
+
+def to_list(obj):
+    if obj is None:
+        return []
+    elif isinstance(obj, (list, tuple)):
+        return obj
+    else:
+        return [obj]
+
+
+def get_base_ticker(ticker: str) -> str:
+    """USDT/BTC -> BTC"""
+    return ticker.split("/")[1]
+
+
+def get_quote_ticker(ticker: str) -> str:
+    """USDT/BTC -> USDT"""
+    return ticker.split("/")[0]
+
+
+def convert(from_: tuple[str, float], ticker: str, prc: float) -> tuple[str, float]:
+    """convert from one asset to another at a given price, assuming no tcost"""
+    quote_ticker = get_quote_ticker(ticker)
+    base_ticker = get_base_ticker(ticker)
+    if from_[0] == quote_ticker:
+        return (base_ticker, from_[1] / prc)
+    elif from_[0] == base_ticker:
+        return (quote_ticker, from_[1] * prc)
+    else:
+        raise ValueError(f"cannot convert {from_} with '{ticker}' at '{prc}'")
+
+
+@contextlib.contextmanager
+def set_level(logger, level):
+    previous_level = logger.level
+    logger.setLevel(level)
+    try:
+        yield
+    finally:
+        logger.setLevel(previous_level)
+
+
+def inferred_freq2freq(inferred_freq: str) -> str:
+    return f"1{inferred_freq}".lower() if not inferred_freq.startswith(tuple(str(i) for i in range(10))) else inferred_freq
