@@ -11,7 +11,7 @@ Backtest, paper trading and live trading all in one place
 2. Pip install the whl
 
 ```bash
-pip install tradingbot.whl
+pip install trading_bot.whl
 ```
 
 Note: Optionally install extra dependencies based on your usage.
