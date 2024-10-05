@@ -1,0 +1,22 @@
+# serializer version: 1
+# name: TestBinanceCandlestick.test_get_history
+  'e804837c96943edf0dab1385d1d86af55140d672e4933664e2ab890b60aadbae'
+# ---
+# name: TestBinanceCandlestick.test_get_history.1
+  'e804837c96943edf0dab1385d1d86af55140d672e4933664e2ab890b60aadbae'
+# ---
+# name: TestBinanceCandlestick.test_load_between
+  'c549aeb94d6d9c1008dcfb8610a7cdf1ff5a0e1afdce28e74f774d03f9680cdc'
+# ---
+# name: TestBinanceCandlestick.test_load_between.1
+  'f4bc9721c6330042c2d0720e77a9d42856edb8c6071dc9c5abf533ace206fda1'
+# ---
+# name: TestBinanceCandlestick.test_load_between.2
+  'a514ebacbabcb42897ccbde9a52e8389d8136dab7ce5dae56545bd223675e423'
+# ---
+# name: TestBinanceCandlestick.test_load_sharp
+  'bf5a3e624c013793605ac93c378f0b18cf4c8649e38b39158a026bc8c6d83663'
+# ---
+# name: TestBinanceCandlestick.test_load_sharp.1
+  '3d896d3fb48a0d7762c7480b75ee4ebeb1479c1d475e5625e3acf8abcf733c6a'
+# ---

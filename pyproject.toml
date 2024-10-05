@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools >= 75.0", "setuptools_scm >= 8.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+dependencies = [
+    "numpy >= 2.1, < 3.0",
+    "pandas >= 2.2, < 3.0",
+    "SQLAlchemy >= 2.0, < 3.0",
+    "pydantic >= 2.9, < 3.0",
+    "pydantic-settings >= 2.2, < 3.0",
+    "retry >= 0.9, <1.0",
+]
+name = "trading-bot"
+dynamic = ["version"]
+requires-python = ">=3.11"
+authors = [{ name = "You Xie", email = "xyshell0@gmail.com" }]
+maintainers = [{ name = "You Xie", email = "xyshell0@gmail.com" }]
+description = "Backtest, paper trading and live trading all in one place"
+readme = "README.md"
+urls = { repository = "https://github.com/xyshell/trading-bot" }
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+
+    "Intended Audience :: Developers",
+    "Intended Audience :: Quant Investors and Traders",
+
+    "License :: OSI Approved :: MIT License",
+
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest >= 8.3, < 9.0",
+    "syrupy >= 4.7, < 5.0",
+    "ruff >= 0.6, < 0.7",
+    "build >= 1.2, < 2.0",
+]
+
+[tool.setuptools.package-data]
+tradingbot = ["config_example.toml"]
+
+[tool.setuptools_scm]
+version_file = "tradingbot/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+log_cli = true
+log_file_level = "WARNING"
+log_format = "%(asctime)s [%(levelname)s] %(name)s <%(filename)s:%(lineno)d>: %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+
+[tool.ruff]
+line-length = 135
+output-format = "full"
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
