@@ -13,6 +13,10 @@ validate = pydantic.validate_call(config=dict(arbitrary_types_allowed=True))
 TYPE_MAPPING = {float: sa.Float, int: sa.Integer, str: sa.String, pd.Timestamp: sa.DateTime}
 
 
+def utc_now_factory() -> pd.Timestamp:
+    return pd.Timestamp.utcnow().tz_localize(None)
+
+
 def dispatch(func):
     _registry = {}
 

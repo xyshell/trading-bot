@@ -105,7 +105,7 @@ class Reporter:
         ptf_vol_ann = _ptf_hist_ret.std() * _N**0.5
         # benchmark
         _bmk_data = next((data for data in strategy.data.values() if data.freq == _freq), None)
-        _bmk_data = _bmk_data or next(iter(strategy.ticker2data.values()))
+        _bmk_data = _bmk_data or next(iter(strategy.data.ticker2candle.values()))
         _len_mul = pd.Timedelta(_freq) / pd.Timedelta(_bmk_data.freq)
         _bmk_df = _bmk_data.load(end, load_len=math.ceil(len(_ptf_report) * _len_mul))
         _bmk_close = _bmk_df.set_index("close_time").close.reindex(_ptf_hist_ret.index, method="ffill")

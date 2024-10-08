@@ -17,3 +17,12 @@
 # name: TestBacktest.test_msft.1
   '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
 # ---
+# name: TestBacktest.test_optimize
+  'a08819f5f4e56363107daa88d6b1801dc55259df16fec9432972510d63cc2361'
+# ---
+# name: TestBacktest.test_optimize.1
+  'c4524cbc813fe44933ba652b5a6d9beca8a45e89a9d9f63f6119da00cb5c4965'
+# ---
+# name: TestBacktest.test_optimize.2
+  'c4524cbc813fe44933ba652b5a6d9beca8a45e89a9d9f63f6119da00cb5c4965'
+# ---

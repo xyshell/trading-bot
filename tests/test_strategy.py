@@ -177,12 +177,13 @@ class TestBacktest:
 
     def test_optimize(self, snapshot):
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
-        bot.data = {"candlestick_4h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="4h", load_len=35)}
+        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
         bot.account = {"USDT": 1000}
         bot.optimize({f"SMACross_{p1}": _SMACross(slow=p1) for p1 in [25, 30, 35]}, plot=False)
 
-        assert True
+        for strat in bot.strategy.values():
+            assert util.hash_pd(strat.report["stats"].drop("strategy")) == snapshot
 
 
 # def test_holistic_input():

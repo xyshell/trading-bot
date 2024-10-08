@@ -103,3 +103,26 @@ class Data:
 
         for line in self.__class__.field:
             self.value[line] = df[line]
+
+
+class DataManager(dict):
+    def __init__(self, *args, mode: ModeType, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._mode = mode
+        for data in self.values():
+            data.mode = mode
+
+        from tradingbot.data.candlestick import Candlestick
+
+        self._candlestick_data = [data for data in self.values() if isinstance(data, Candlestick)]
+        assert self._candlestick_data, "Data must contain at least one tb.data.Candlestick()"
+
+    @property
+    def ticker2candle(self) -> dict[str, Data]:
+        ticker2min_freq = collections.defaultdict(lambda: pd.Timedelta.max)
+        ticker2candle = {}  # reference ticker to the candlestick with highest frequency
+        for data in self._candlestick_data:
+            if pd.Timedelta(data.freq) < ticker2min_freq[data.ticker]:
+                ticker2min_freq[data.ticker] = pd.Timedelta(data.freq)
+                ticker2candle[data.ticker] = data
+        return ticker2candle

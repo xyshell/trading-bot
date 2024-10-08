@@ -39,7 +39,6 @@ class StandardInterval(Trigger):
     def __init__(self, interval: TimedeltaType):
         super().__init__()
         self.interval = interval
-        self.checked.append(pd.Timestamp.min)
 
     def __eq__(self, other: Trigger) -> bool:
         return isinstance(other, StandardInterval) and self.interval == other.interval
@@ -48,6 +47,9 @@ class StandardInterval(Trigger):
         return f"{self.__class__.__name__}('{self.interval}')"
 
     def check(self, now: pd.Timestamp) -> bool:
+        if not self.checked:
+            self.checked.append(now)
+            return now.ceil(self.interval) == now
         next_check = self.checked[-1].ceil(self.interval)
         if next_check <= now:
             self.checked.append(now)

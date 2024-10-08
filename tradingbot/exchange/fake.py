@@ -31,7 +31,7 @@ class FakeSpotExchange(Exchange):
         if order.type is not Order.Type.MARKET:
             raise NotImplementedError(f"Order type {order.type} is not supported yet.")
 
-        exec_prc = self.strategy.ticker2data[order.ticker]["close"].iloc[-1]
+        exec_prc = self.strategy.data.ticker2candle[order.ticker]["close"].iloc[-1]
         from_ticker, to_ticker = order.from_ticker, order.to_ticker
         quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
 
