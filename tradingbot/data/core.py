@@ -29,12 +29,28 @@ class Data:
             for k, v in cls.field.items():
                 assert isinstance(k, str), "field key must be str"
                 assert isinstance(v, type) or typing.get_origin(v) is typing.Annotated, "field value must be type or Annotated type"
+            cls.pit = next(  # point-in-time := first pd.Timestamp field defined as part of "primary_key"
+                (k for k, v in cls.field.items() if "primary_key" in typing.get_args(v) and typing.get_args(v)[0] is pd.Timestamp),
+                None,
+            )
+            assert (
+                cls.pit is not None
+            ), f"can't find PIT (point-in-time) column in {cls.field=}. At least one column must be Annotated[pd.Timestamp, 'primary_key']"
 
-    def __new__(cls, source: str, *args, **kwargs) -> Self:
-        return super().__new__(cls._registry[(cls, source)])
+    def __new__(cls, *args, **kwargs) -> Self:
+        source = args[0] if args else cls.source
+        kls = cls.__base__ if cls.__base__ is not Data else cls
+        return super().__new__(kls._registry[(kls, source)])
 
-    def __init__(self, mode: ModeType = "backtest", load_len: int = 1000, **kwargs):
+    def __init__(self, mode: ModeType = "backtest", freq: str = "1s", load_len: int = 1000, **kwargs):
+        """
+        Args:
+            mode (str): data fetching mode. "backtest" or "paper" or "live"
+            freq (str): update frequency, last update older than (now - freq) will be considered as stale and thus trigger update
+            load_len (int): length of data to load
+        """
         self._mode = mode
+        self.freq = freq
         self.load_len = load_len
         self.value = collections.defaultdict(pd.Series)
         for k, v in kwargs.items():
@@ -79,7 +95,7 @@ class Data:
 
     def update(self, now: pd.Timestamp, **kwargs) -> None:
         df = self.load(now, **kwargs) if self.mode == "backtest" else pd.DataFrame()
-        if self.mode in {"paper", "live"} or len(df) < self.load_len:
+        if self.mode in {"paper", "live"} or df.empty or df[self.pit].iloc[-1] < (now - pd.Timedelta(self.freq)):
             logger.debug(f"len={len(df)}<{self.load_len}. fetching {self.__class__.__name__} for {now=}")
             df = self.get(now, **kwargs)
             thread = threading.Thread(target=self.set, args=(now, df), kwargs=kwargs, daemon=True)

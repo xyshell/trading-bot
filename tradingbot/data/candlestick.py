@@ -36,7 +36,7 @@ class Candlestick(Data):
         """
         Args:
             ticker (str): ticker name, e.g. "USDT/BTC"
-            freq (str): frequency, e.g. "1h", "1d"
+            freq (str): update frequency and candlestick interval, e.g. "1h", "1d"
             closed_only (bool): if True, only return closed candles, default is True
         """
         super().__init__(**kwargs)
@@ -74,23 +74,25 @@ class Candlestick(Data):
                     load_len=load_len,
                 )
                 candlestick.update(now)
+                agg_rule = {
+                    "ticker": "last",
+                    "close_time": "last",
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "base_volume": "sum",
+                }
+                if "open_time" in df.columns:
+                    agg_rule["open_time"] = "first"
+                if "quote_volume" in df.columns:
+                    agg_rule["quote_volume"] = "sum"
                 aug_df = (
-                    candlestick.frame.set_index("open_time")
-                    .resample(self.freq)
-                    .agg(
-                        {
-                            "ticker": "last",
-                            "close_time": "last",
-                            "open": "first",
-                            "high": "max",
-                            "low": "min",
-                            "close": "last",
-                            "base_volume": "sum",
-                            "quote_volume": "sum",
-                        }
-                    )
-                ).reset_index()
-                df = pd.concat([df.iloc[1:], aug_df], ignore_index=True)
+                    candlestick.frame.set_index("close_time", drop=False)
+                    .resample(self.freq, closed="right", label="right")
+                    .agg(agg_rule)
+                ).reset_index(drop=True)
+                df = pd.concat([df.iloc[len(aug_df) :], aug_df], ignore_index=True)
         return df
 
     def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:

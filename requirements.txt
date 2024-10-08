@@ -10,10 +10,13 @@ yfinance==0.2.44
 python-binance==1.0.19  # optional
 
 # exchange
-ccxt==4.3.19  # optional
+ccxt==4.4.13  # optional
 
 # plot
 mplfinance==0.12.10b0  # optional
+
+# parallel computing
+dask==2024.9.1
 
 # dev only
 pytest==8.3.3

@@ -104,12 +104,13 @@ class Reporter:
         ptf_ret_ann = (1 + ptf_ret) ** _n - 1
         ptf_vol_ann = _ptf_hist_ret.std() * _N**0.5
         # benchmark
-        _bmk_data = next(iter(strategy.ticker2data.values()))  # find the
-        len_mul = pd.Timedelta(_freq) / pd.Timedelta(_bmk_data.freq)
-        _bmk_df = _bmk_data.load(end, load_len=math.ceil(len(_ptf_report) * len_mul))
-        bmk_clost = _bmk_df.set_index("close_time").close.reindex(_ptf_hist_ret.index, method="ffill")
-        _bmk_hist_ret = bmk_clost.pct_change()
-        bmk_ret = bmk_clost.iloc[-1] / bmk_clost.iloc[0] - 1
+        _bmk_data = next((data for data in strategy.data.values() if data.freq == _freq), None)
+        _bmk_data = _bmk_data or next(iter(strategy.ticker2data.values()))
+        _len_mul = pd.Timedelta(_freq) / pd.Timedelta(_bmk_data.freq)
+        _bmk_df = _bmk_data.load(end, load_len=math.ceil(len(_ptf_report) * _len_mul))
+        _bmk_close = _bmk_df.set_index("close_time").close.reindex(_ptf_hist_ret.index, method="ffill")
+        _bmk_hist_ret = _bmk_close.pct_change()
+        bmk_ret = _bmk_close.iloc[-1] / _bmk_close.iloc[0] - 1
         bmk_ret_ann = (1 + bmk_ret) ** _n - 1
         bmk_vol_ann = _bmk_hist_ret.std() * _N**0.5
         # kpi

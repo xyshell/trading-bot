@@ -1,7 +1,19 @@
 # serializer version: 1
 # name: TestBacktest.test_btcusdt
+  '95e6b7ec5fb892dcd7574df132c190a5f7f454410dc7fdf64c6684e3666a2282'
+# ---
+# name: TestBacktest.test_btcusdt.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
 # name: TestBacktest.test_closed_only
+  '95e6b7ec5fb892dcd7574df132c190a5f7f454410dc7fdf64c6684e3666a2282'
+# ---
+# name: TestBacktest.test_closed_only.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
+# ---
+# name: TestBacktest.test_msft
+  '93aa7200f3a6916557010d92726dedb79c4fca6382f750aebd0e74c9112834cb'
+# ---
+# name: TestBacktest.test_msft.1
+  '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
 # ---

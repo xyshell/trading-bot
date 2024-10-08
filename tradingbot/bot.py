@@ -1,6 +1,7 @@
 import collections
 import copy
 import time
+import traceback
 from typing import Callable, Dict, Type
 import concurrent.futures
 import logging
@@ -22,6 +23,10 @@ from tradingbot.reporter import Reporter
 logger = logging.getLogger(__name__)
 
 
+def _now_factory() -> pd.Timestamp:
+    return pd.Timestamp.utcnow().tz_localize(None)
+
+
 class Bot:
     @util.validate
     def __init__(
@@ -30,7 +35,7 @@ class Bot:
         start: DatetimeType,
         end: DatetimeType,
         refresh_rate: float = 0.0,
-        now_factory: Callable = lambda: pd.Timestamp.utcnow().tz_localize(None),
+        now_factory: Callable = _now_factory,
         **kwargs,
     ):
         """
@@ -92,12 +97,12 @@ class Bot:
         self._ticker2data = ticker2data
 
     @property
-    def strategy(self) -> Strategy:
+    def strategy(self) -> Strategy | dict[str, Strategy]:
         return self._strategy
 
     @strategy.setter
     @util.validate
-    def strategy(self, strategy: Strategy):
+    def strategy(self, strategy: Strategy | dict[str, Strategy]):
         self._strategy = strategy
 
     @property
@@ -153,16 +158,18 @@ class Bot:
         toc = time.time()
         logger.debug(f"Data Update: took {toc - tic:.2f} seconds")
 
-    def plot(self, engine="matplotlib", **kwargs):
+    @staticmethod
+    def plot(strategy: Strategy, /, engine="matplotlib", **kwargs) -> None:
         assert engine == "matplotlib", f"{engine=} not supported"
 
         import mplfinance as mpf
 
+        data = strategy.data
         # analyze results
-        port_report = self.strategy.report["portfolio"]
-        order_report = self.strategy.report["order"].query("status == 'FILLED'")
+        port_report = strategy.report["portfolio"]
+        order_report = strategy.report["order"].query("status == 'FILLED'")
         sample_freq = util.inferred_freq2freq(port_report.index.inferred_freq)
-        candlestick = next(data for data in self.data.values() if isinstance(data, Candlestick) and data.freq == sample_freq)
+        candlestick = next(da for da in data.values() if isinstance(da, Candlestick) and da.freq == sample_freq)
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
         buy_sell = order_report["action"].to_frame()
@@ -176,11 +183,13 @@ class Bot:
         # fmt: off
         fig, axlist = mpf.plot(
             df,
+            mav=kwargs.pop("mav", None),
+            mavcolors=kwargs.pop("mavcolors", None),
             type="candle",
             style="charles",
             volume=True,
             volume_alpha=0.3,
-            title="Backtest Report",
+            title=f"{strategy.__class__.__name__}_{'_'.join([str(p) for p in strategy.param.values()])}",
             main_panel=1,
             volume_panel=2,
             figsize=(15.5, 7),
@@ -208,8 +217,10 @@ class Bot:
         # fmt: on
 
     def run(self, plot: bool | dict = False):  # TODO: class hierarchy of pipeline for different modes
-        now_generator = self.get_now_generator()
-
+        """Run the bot.
+        Args:
+            plot (bool | dict, optional): if True, plot results. Defaults to False.
+        """
         strategy = self._strategy
 
         # set strategy
@@ -224,6 +235,7 @@ class Bot:
         while True:
             strategy.start()
 
+            now_generator = self.get_now_generator()
             for now in now_generator():
                 tic = time.time()
                 if self._mode == "backtest" and now > self._end:
@@ -276,4 +288,35 @@ class Bot:
 
         if plot:
             plot = {} if isinstance(plot, bool) else plot
-            self.plot(**plot)
+            self.plot(strategy, **plot)
+
+    def optimize(self, strategy: dict[str, Strategy], engine: str = "dask", errors: str = "warn", **kwargs) -> None:
+        """optimize multiple strategies
+        Args:
+            errors (str, optional): "ignore", "warn" or "raise"
+            **kwargs: passed to bot.run(**kwargs)
+        """
+        assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
+        import dask
+
+        def _bot_run(bot, strategy, **kwargs) -> Strategy:
+            bot.strategy = strategy
+            try:
+                bot.run(**kwargs)
+            except Exception as exc:
+                if errors == "warn":
+                    msg = traceback.format_exc()
+                    warnings.warn(f"{strategy} failed, due to {exc!r}\n{msg}")
+                elif errors == "raise":
+                    raise
+                else:  # ignore
+                    pass
+            return bot.strategy
+
+        jobs = [dask.delayed(_bot_run)(self, strategy, **kwargs) for strategy in strategy.values()]
+        results = dask.compute(*jobs, scheduler="processes")
+
+        for name, res in zip(strategy.keys(), results):
+            strategy[name] = res
+
+        self.strategy = strategy
