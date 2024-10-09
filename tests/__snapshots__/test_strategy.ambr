@@ -11,6 +11,18 @@
 # name: TestBacktest.test_closed_only.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
+# name: TestBacktest.test_limit_order
+  'cc6020614d6d8dd9dae66ba3cc29c9cfa300dafe0eb064a0044c233bca088b3c'
+# ---
+# name: TestBacktest.test_limit_order.1
+  'e4a2b46e751f71db8111855f37cff7af949ac22a74863bfa76bac842d6242174'
+# ---
+# name: TestBacktest.test_limit_order.2
+  '6aed53345166e634f2ed33e99c9a285f791d09f32200dcf8430a9f041edac9c9'
+# ---
+# name: TestBacktest.test_limit_order.3
+  '57628918aa341821f4b203e1ebc25997c1ce2e21d3cdc79a320abe326a3947e9'
+# ---
 # name: TestBacktest.test_msft
   '93aa7200f3a6916557010d92726dedb79c4fca6382f750aebd0e74c9112834cb'
 # ---

@@ -2,6 +2,7 @@ import logging
 from typing import Sequence
 
 import tradingbot as tb
+from tradingbot.model import Order
 import tradingbot.util as util
 
 
@@ -184,6 +185,47 @@ class TestBacktest:
 
         for strat in bot.strategy.values():
             assert util.hash_pd(strat.report["stats"].drop("strategy")) == snapshot
+
+    def test_limit_order(self, snapshot):
+        class Test(tb.Strategy):
+            param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
+
+            @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
+            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+                curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
+                for order in context["pending_order"]:
+                    if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
+                        order.status = Order.Status.CANCELED
+                        return tb.Order(
+                            action="BUY",
+                            ticker=self.param["ticker"],
+                            size_type="PCTG",
+                            size=0.5,
+                            type="LIMIT",
+                            param={"price": curr_prc * 0.98},
+                        )
+
+                if not context["pending_order"]:
+                    return tb.Order(
+                        action="BUY",
+                        ticker=self.param["ticker"],
+                        size_type="PCTG",
+                        size=0.5,
+                        type="LIMIT",
+                        param={"price": curr_prc * 0.98},
+                    )
+
+        bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
+        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+        bot.strategy = Test()
+        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
+        bot.account = {"USDT": 1000}
+        bot.run()
+
+        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["order"].drop(columns="param")) == snapshot
+        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
 
 # def test_holistic_input():

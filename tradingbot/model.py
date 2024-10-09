@@ -49,9 +49,9 @@ class Config(BaseSettings):
         model_config = ConfigDict(extra="allow")
 
         class _CCXTExchangeConfig(BaseModel):
+            model_config = ConfigDict(extra="allow")
+
             name: str
-            api_key: str | None = Field(default=None)
-            secret_key: str | None = Field(default=None)
 
         ccxt: _CCXTExchangeConfig | None = Field(default=None)
 
@@ -217,6 +217,7 @@ class Order(BaseModel):
 
     class Status(Enum):
         NEW = "NEW"
+        PENDING = "PENDING"
         PARTIAL_FILLED = "PARTIAL_FILLED"
         FILLED = "FILLED"
         CANCELED = "CANCELED"

@@ -87,8 +87,11 @@ class BacktestPipeline(Pipeline):
                 for order in orders:
                     if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
                         strategy.order_history[now] = order
-                    elif order.status is Order.Status.PARTIAL_FILLED:
-                        strategy.pending_order.add(order)
+                        if order in strategy.pending_order:
+                            strategy.pending_order.remove(order)
+                    elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
+                        if order not in strategy.pending_order:
+                            strategy.pending_order.append(order)
 
             # collect result
             # update market price for position

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class FakeSpotExchange(Exchange):
-    """Fake exchange used for backtest and paper trading"""
+    """Fake spot exchange used for backtest and paper trading"""
 
     @util.validate
     def __init__(self, commission: float = 0.0, **kwargs) -> None:
@@ -28,10 +28,30 @@ class FakeSpotExchange(Exchange):
         """
         if order.status in (Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED):
             return order
-        if order.type is not Order.Type.MARKET:
+        if order.type not in {Order.Type.LIMIT, Order.Type.MARKET}:
             raise NotImplementedError(f"Order type {order.type} is not supported yet.")
 
-        exec_prc = self.strategy.data.ticker2candle[order.ticker]["close"].iloc[-1]
+        candle = self.strategy.data.ticker2candle[order.ticker]
+
+        match order.type:
+            case Order.Type.MARKET:
+                exec_prc = candle["close"].iloc[-1]
+            case Order.Type.LIMIT if order.status is Order.Status.NEW:
+                if order.action is Order.Action.BUY and order.param["price"] > candle["close"].iloc[-1]:
+                    exec_prc = candle["close"].iloc[-1]
+                elif order.action is Order.Action.SELL and order.param["price"] < candle["close"].iloc[-1]:
+                    exec_prc = candle["close"].iloc[-1]
+                else:
+                    order.status = Order.Status.PENDING
+                    return order
+            case Order.Type.LIMIT if order.status is Order.Status.PENDING:
+                high = candle["high"].iloc[-1]
+                low = candle["low"].iloc[-1]
+                if low < order.param["price"] < high:
+                    exec_prc = order.param["price"]
+                else:
+                    return order
+
         from_ticker, to_ticker = order.from_ticker, order.to_ticker
         quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
 
