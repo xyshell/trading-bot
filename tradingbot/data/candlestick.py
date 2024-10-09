@@ -62,8 +62,9 @@ class Candlestick(Data):
         df = super(self.__class__, self).get(now, **kwargs)
         if self.mode == "backtest" and not self.closed_only and pd.Timedelta(self.freq) > pd.Timedelta(Candlestick.MIN_FREQ_USAGE):
             # extend candlestick using Candlestick.MIN_FREQ_USAGE
-            freq = pd.Timedelta(Candlestick.MIN_FREQ_USAGE)
-            load_len = (now - df["close_time"].max()) // freq
+            max_close_time = df["close_time"].max()
+            max_close_time = pd.NaT if pd.isna(max_close_time) else max_close_time
+            load_len = (now - max_close_time) // pd.Timedelta(Candlestick.MIN_FREQ_USAGE)
             if load_len > 0:
                 candlestick = Candlestick(
                     self.source,
