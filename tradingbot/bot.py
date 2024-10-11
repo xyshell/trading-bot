@@ -39,13 +39,12 @@ class Bot:
         self._pipeline = (
             BacktestPipeline(now_factory, start=start, end=end, **kwargs)
             if mode == "backtest"
-            else PaperPipeline(now_factory, **kwargs)
+            else PaperPipeline(now_factory, refresh_rate=refresh_rate, **kwargs)
             if mode == "paper"
-            else LivePipeline(now_factory, **kwargs)
+            else LivePipeline(now_factory, refresh_rate=refresh_rate, **kwargs)
         )
         self._start = start
         self._end = end
-        self._refresh_rate = refresh_rate
         self._now_factory = now_factory
 
         self._data: dict[str, Data] = {}

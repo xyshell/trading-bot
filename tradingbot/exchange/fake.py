@@ -37,9 +37,9 @@ class FakeSpotExchange(Exchange):
             case Order.Type.MARKET:
                 exec_prc = candle["close"].iloc[-1]
             case Order.Type.LIMIT if order.status is Order.Status.NEW:
-                if order.action is Order.Action.BUY and order.param["price"] > candle["close"].iloc[-1]:
+                if order.action is Order.Action.BUY and order.param["price"] >= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
-                elif order.action is Order.Action.SELL and order.param["price"] < candle["close"].iloc[-1]:
+                elif order.action is Order.Action.SELL and order.param["price"] <= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
                 else:
                     order.status = Order.Status.PENDING
@@ -47,7 +47,7 @@ class FakeSpotExchange(Exchange):
             case Order.Type.LIMIT if order.status is Order.Status.PENDING:
                 high = candle["high"].iloc[-1]
                 low = candle["low"].iloc[-1]
-                if low < order.param["price"] < high:
+                if low <= order.param["price"] <= high:
                     exec_prc = order.param["price"]
                 else:
                     return order

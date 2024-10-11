@@ -1,5 +1,7 @@
 import contextlib
 import hashlib
+import logging
+import pathlib
 import types
 import functools
 import sqlalchemy as sa
@@ -93,3 +95,50 @@ def set_level(logger, level):
 
 def inferred_freq2freq(inferred_freq: str) -> str:
     return f"1{inferred_freq}".lower() if not inferred_freq.startswith(tuple(str(i) for i in range(10))) else inferred_freq
+
+
+class SlackHandler(logging.Handler):
+    def __init__(self, bot_token: str, channel: str):
+        super().__init__()
+
+        from slack_sdk import WebClient
+
+        self._client = WebClient(token=bot_token)
+        self._channel = channel
+
+    def emit(self, record):
+        from slack_sdk.errors import SlackApiError
+
+        msg = self.format(record)
+        try:
+            resp = self._client.chat_postMessage(channel=self._channel, text=msg)
+        except SlackApiError as e:
+            logging.getLogger(__name__).error(f"Slack API error: {e.response['error']}")
+        else:
+            logging.getLogger(__name__).info(f"Slack sent to channel='{resp['channel']}', {msg=}")
+
+
+def get_strategy_logger(name: str) -> logging.Logger:
+    from tradingbot import config
+
+    logger = logging.getLogger(f"tradingbot.strategy.{name}")
+    logger.setLevel(config.logging.loggers["tradingbot.strategy"]["level"])
+
+    # logging to file
+    log_dir = pathlib.Path(config.logging.handlers["file"]["filename"]).parent
+    file_handler = logging.FileHandler(f"{log_dir / name}.log", mode="a", encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter(config.logging.formatters["standard"]["format"], config.logging.formatters["standard"]["datefmt"])
+    )
+    file_handler.setLevel(config.logging.handlers["file"]["level"])
+    logger.addHandler(file_handler)
+
+    # logging to slack
+    if hasattr(config.notification, "slack"):
+        slack_handler = SlackHandler(bot_token=config.notification.slack.bot_token, channel=config.notification.slack.channel)
+        slack_handler.setFormatter(
+            logging.Formatter(config.logging.formatters["concise"]["format"], config.logging.formatters["concise"]["datefmt"])
+        )
+        slack_handler.setLevel(logging.INFO)
+        logger.addHandler(slack_handler)
+    return logger

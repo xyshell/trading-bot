@@ -30,6 +30,9 @@ class Strategy(abc.ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.param})"
 
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}_{"_".join([str(v) for v in self.param.values()])}".replace("/", "")
+
     def start(self):
         pass
 

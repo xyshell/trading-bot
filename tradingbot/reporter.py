@@ -89,11 +89,11 @@ class Reporter:
         _ptf_report = strategy.report["portfolio"] if "portfolio" in strategy.report else Reporter.get_portfolio_report(strategy)
         _trade_report = strategy.report["trade"] if "trade" in strategy.report else Reporter.get_trade_report(strategy)
 
-        _freq = util.inferred_freq2freq(_ptf_report.index.inferred_freq)
+        _freq = util.inferred_freq2freq(_ptf_report.index.inferred_freq or next(iter(strategy.data.ticker2candle.values())).freq)
         start = _ptf_report.index[0]
         end = _ptf_report.index[-1]
         duration = end - start
-        _n = pd.Timedelta("365 days") / duration
+        _n = pd.Timedelta("365 days") / (duration or pd.NaT)
         _N = pd.Timedelta("365 days") / pd.Timedelta(_freq)
         # portfolio
         _ptf_hist_ret = _ptf_report.nav.pct_change()

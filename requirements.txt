@@ -12,6 +12,9 @@ python-binance==1.0.19  # optional
 # exchange
 ccxt==4.4.13  # optional
 
+# slack
+slack_sdk  # optional
+
 # plot
 mplfinance==0.12.10b0  # optional
 

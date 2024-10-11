@@ -9,12 +9,14 @@ import psutil
 
 import pandas as pd
 
+import tradingbot as tb
 import tradingbot.util as util
 from tradingbot.model import Order
 from tradingbot.data.core import Data
 from tradingbot.strategy import Strategy
 from tradingbot.trigger import StandardInterval
 from tradingbot.reporter import Reporter
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,7 @@ class Pipeline(abc.ABC):
 
 
 class BacktestPipeline(Pipeline):
+    @util.validate
     def __init__(self, now_factory: Callable[[], pd.Timestamp], start: pd.Timestamp, end: pd.Timestamp, **kwargs):
         super().__init__(now_factory)
         self._start = start
@@ -57,11 +60,14 @@ class BacktestPipeline(Pipeline):
         return now_generator
 
     def run(self, strategy: Strategy, plot: bool | dict = False, **kwargs):
+        strategy.logger = logger
         strategy.start()
 
         now_generator = self._get_now_generator(strategy.next.trigger)
         for now in now_generator():
             tic = time.time()
+            memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
+
             if now > self._end:
                 break
 
@@ -72,7 +78,7 @@ class BacktestPipeline(Pipeline):
                     triggered.append(tri)
 
             if any(triggered):
-                logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}")
+                logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
                 # prepare info
                 self._update_data(strategy.data, now)
@@ -93,17 +99,16 @@ class BacktestPipeline(Pipeline):
                         if order not in strategy.pending_order:
                             strategy.pending_order.append(order)
 
-            # collect result
-            # update market price for position
-            for pos in strategy.account.position:
-                for ticker, candle in strategy.data.ticker2candle.items():
-                    if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
-                        pos.market_prc = candle["close"].iloc[-1]
-            # archive position
-            strategy.account_history[now] = copy.deepcopy(strategy.account)
+                # collect result
+                # update market price for position
+                for pos in strategy.account.position:
+                    for ticker, candle in strategy.data.ticker2candle.items():
+                        if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
+                            pos.market_prc = candle["close"].iloc[-1]
+                # archive position
+                strategy.account_history[now] = copy.deepcopy(strategy.account)
 
             toc = time.time()
-            memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
             logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
 
         # build report
@@ -129,57 +134,61 @@ class PaperPipeline(Pipeline):
 
         return now_generator
 
-    def run(self, strategy: Strategy):
+    def run(self, strategy: Strategy, **kwargs):
+        strategy.logger = util.get_strategy_logger(str(strategy))
         strategy.start()
 
         now_generator = self._get_now_generator()
-        for now in now_generator():
-            tic = time.time()
+        try:
+            for now in now_generator():
+                tic = time.time()
+                memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
 
-            # check trigger status
-            triggered = []
-            for tri in strategy.next.trigger:
-                if tri.check(now):
-                    triggered.append(tri)
+                # check trigger status
+                triggered = []
+                for tri in strategy.next.trigger:
+                    if tri.check(now):
+                        triggered.append(tri)
 
-            if any(triggered):
-                logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}")
+                if any(triggered):
+                    strategy.logger.debug(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
-                # prepare info
-                self._update_data(strategy.data, now)
+                    # prepare info
+                    self._update_data(strategy.data, now)
 
-                # call strategy
-                orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
+                    # call strategy
+                    orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
-                # execute orders
-                orders = util.to_list(orders) + strategy.pending_order
-                for order in orders:
-                    self.exchange.execute(now, order)
-                for order in orders:
-                    if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
-                        strategy.order_history[now] = order
-                    elif order.status is Order.Status.PARTIAL_FILLED:
-                        strategy.pending_order.add(order)
+                    # execute orders
+                    orders = util.to_list(orders) + strategy.pending_order
+                    for order in orders:
+                        strategy.exchange.execute(now, order)
+                    for order in orders:
+                        if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
+                            strategy.order_history[now] = order
+                        elif order.status is Order.Status.PARTIAL_FILLED:
+                            strategy.pending_order.add(order)
 
-            # collect result
-            # update market price for position
-            for pos in strategy.account.position:
-                for ticker, candle in strategy.data.ticker2candle.items():
-                    if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
-                        pos.market_prc = candle["close"].iloc[-1]
-            # archive position
-            strategy.account_history[now] = copy.deepcopy(strategy.account)
+                    # collect result
+                    # update market price for position
+                    for pos in strategy.account.position:
+                        for ticker, candle in strategy.data.ticker2candle.items():
+                            if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
+                                pos.market_prc = candle["close"].iloc[-1]
+                    # archive position
+                    strategy.account_history[now] = copy.deepcopy(strategy.account)
 
-            toc = time.time()
-            memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
-            logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
-            time.sleep(self._refresh_rate)
+                toc = time.time()
+                logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
+                time.sleep(self._refresh_rate)
 
-        # build report
-        Reporter.set(strategy)
-        Reporter.display(strategy)
+        except BaseException as e:
+            strategy.logger.info(f"Stopping {strategy!r} due to {e!r}...")
+            # build report
+            Reporter.set(strategy)
+            Reporter.display(strategy)
 
-        strategy.stop()
+            strategy.stop()
 
 
 class LivePipeline(PaperPipeline):

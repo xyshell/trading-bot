@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import Self, Sequence, Type
+import typing
 import logging
 
 import numpy as np
@@ -55,18 +55,28 @@ class Config(BaseSettings):
 
         ccxt: _CCXTExchangeConfig | None = Field(default=None)
 
+    class _NotificationConfig(BaseModel):
+        model_config = ConfigDict(extra="allow")
+
+        class _SlackConfig(BaseModel):
+            bot_token: str
+            channel: str
+
+        slack: _SlackConfig | None = Field(default=None)
+
     class _LoggingConfig(BaseModel):
         version: int = 1
         disable_existing_loggers: bool = False
 
         formatters: dict[str, dict[str, str]]
         handlers: dict[str, dict[str, str]]
-        loggers: dict[str, dict[str, str | Sequence[str] | bool]]
-        root: dict[str, str | Sequence[str]]
+        loggers: dict[str, dict[str, str | typing.Sequence[str] | bool]]
+        root: dict[str, str | typing.Sequence[str]]
 
     general: _GeneralConfig
     source: _SourceConfig
     exchange: _ExchangeConfig
+    notification: _NotificationConfig
     logging: _LoggingConfig
 
     model_config = SettingsConfigDict(
@@ -76,7 +86,7 @@ class Config(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[BaseSettings],
+        settings_cls: typing.Type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
@@ -108,7 +118,7 @@ class Position(BaseModel):
         return self.qty * self.market_prc
 
     @staticmethod
-    def get(positions: list[Self], ticker: str) -> Self:
+    def get(positions: list[typing.Self], ticker: str) -> typing.Self:
         return next((p for p in positions if p.ticker == ticker), Position(ticker=ticker, qty=0))
 
     def clear(self) -> None:
@@ -125,7 +135,7 @@ class Account:
         return f"Account({wealth})"
 
     @classmethod
-    def create(cls, wealth: dict[str, float]) -> Self:
+    def create(cls, wealth: dict[str, float]) -> typing.Self:
         return cls([Position(ticker=ticker, qty=qty) for ticker, qty in wealth.items()])
 
     @property
@@ -141,7 +151,7 @@ class Account:
             self._position[ticker] = pos
         return self._position[ticker]
 
-    def __add__(self, pos: Position) -> Self:
+    def __add__(self, pos: Position) -> typing.Self:
         this = self[pos.ticker]
         new_qty = this.qty + pos.qty
         if this.qty * new_qty < 0:
@@ -155,7 +165,7 @@ class Account:
             this.entry_prc = entry_prc
         return self
 
-    def __sub__(self, pos: Position) -> Self:
+    def __sub__(self, pos: Position) -> typing.Self:
         pos.qty = -pos.qty
         return self + pos
 
@@ -176,7 +186,7 @@ class Transaction(BaseModel):
     timestamp: pd.Timestamp
 
     @model_validator(mode="after")
-    def reconcile(self) -> Self:
+    def reconcile(self) -> typing.Self:
         assert (
             self.from_[0] in self.ticker and self.to_[0] in self.ticker
         ), f"Invalid transaction: {self.from_[0]}, {self.to_[0]} not in {self.ticker}"
