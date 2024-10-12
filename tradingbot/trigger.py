@@ -1,5 +1,6 @@
 import abc
 import collections
+import copy
 import functools
 import itertools
 from typing import Self

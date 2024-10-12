@@ -1,3 +1,4 @@
+import copy
 import traceback
 from typing import Callable
 import logging
@@ -127,6 +128,8 @@ class Bot:
 
         def _bot_run(bot, strategy, **kwargs) -> Strategy:
             bot.strategy = strategy
+            for trigger in bot.strategy.next.trigger:
+                trigger.checked.clear()
             try:
                 bot.run(**kwargs)
             except Exception as exc:
@@ -139,7 +142,7 @@ class Bot:
                     pass
             return bot.strategy
 
-        jobs = [dask.delayed(_bot_run)(self, strategy, **kwargs) for strategy in strategy.values()]
+        jobs = [dask.delayed(_bot_run)(self, copy.deepcopy(strategy), **kwargs) for strategy in strategy.values()]
         results = dask.compute(*jobs, scheduler="processes")
 
         for name, res in zip(strategy.keys(), results):
