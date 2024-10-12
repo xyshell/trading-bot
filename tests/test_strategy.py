@@ -48,7 +48,7 @@ class TestBacktest:
     def test_btcusdt(self, snapshot):
         # fmt: off
         bot = tb.Bot(
-            mode="backtest",  # or "paper" or "live"
+            mode="backtest",  # or "live"
             start="2024-01-01", end="2024-01-10",  # for backtest mode
         )
         # fmt: on
@@ -104,7 +104,7 @@ class TestBacktest:
 
         # fmt: off
         bot = tb.Bot(
-            mode="backtest",  # or "paper" or "live"
+            mode="backtest",  # or "live"
             start="2024-01-01", end="2024-10-01",  # for backtest mode
         )
         # fmt: on
@@ -178,7 +178,7 @@ class TestBacktest:
 
     def test_optimize(self, snapshot):
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
-        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=40)}
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
         bot.account = {"USDT": 1000}
         bot.optimize({f"SMACross_{p1}": _SMACross(slow=p1) for p1 in [25, 30, 35]}, plot=False)
@@ -223,32 +223,6 @@ class TestBacktest:
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
-        assert util.hash_pd(bot.strategy.report["order"].drop(columns="param")) == snapshot
+        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
         assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
         assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
-
-
-# def test_holistic_input():
-#     class DummyStrategy(tb.Strategy):
-#         param = {}
-
-#         def next(self, context: dict):
-#             pass
-
-#     # fmt: off
-#     bot = tb.Bot(
-#         mode="backtest",  # or "paper" or "live"
-#         start="2024-01-01", end="2024-02-01",  # for backtest mode
-#         data={
-#             "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h"),
-#         },
-#         strategy=DummyStrategy(),
-#         exchange=tb.exchange.FakeSpotExchange(commission=0.001),
-#         account={"USDT": 1000},
-#     )
-#     # fmt: on
-
-#     assert bot.data
-#     assert bot.strategy
-#     assert bot.exchange
-#     assert bot.account

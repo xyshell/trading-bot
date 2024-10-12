@@ -45,7 +45,7 @@ class Data:
     def __init__(self, mode: ModeType = "backtest", freq: str = "1s", load_len: int = 1000, **kwargs):
         """
         Args:
-            mode (str): data fetching mode. "backtest" or "paper" or "live"
+            mode (str): data fetching mode. "backtest" or "live"
             freq (str): update frequency, last update older than (now - freq) will be considered as stale and thus trigger update
             load_len (int): length of data to load
         """
@@ -95,7 +95,7 @@ class Data:
 
     def update(self, now: pd.Timestamp, **kwargs) -> None:
         df = self.load(now, **kwargs) if self.mode == "backtest" else pd.DataFrame()
-        if self.mode in {"paper", "live"} or df.empty or df[self.pit].iloc[-1] < (now - pd.Timedelta(self.freq)):
+        if self.mode == "live" or df.empty or df[self.pit].iloc[-1] < (now - pd.Timedelta(self.freq)):
             logger.debug(f"len={len(df)}<{self.load_len}. fetching {self.__class__.__name__} for {now=}")
             df = self.get(now, **kwargs)
             thread = threading.Thread(target=self.set, args=(now, df), kwargs=kwargs, daemon=True)

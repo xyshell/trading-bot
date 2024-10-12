@@ -17,6 +17,16 @@ class FakeSpotExchange(Exchange):
     def __init__(self, commission: float = 0.0, **kwargs) -> None:
         self._commission = commission
 
+    def update_orders(self, now: pd.Timestamp, orders: list[Order]):
+        for order in orders:
+            if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
+                self.strategy.order_history[now] = order
+                if order in self.strategy.pending_order:
+                    self.strategy.pending_order.remove(order)
+            elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
+                if order not in self.strategy.pending_order:
+                    self.strategy.pending_order.append(order)
+
     def execute(self, now: pd.Timestamp, order: Order) -> Order:
         """
         Args:
@@ -24,7 +34,7 @@ class FakeSpotExchange(Exchange):
             order (Order):
 
         Returns:
-            Order in {Order.Status.FILLED, Order.Status.REJECTED}
+            Order
         """
         if order.status in (Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED):
             return order
@@ -104,5 +114,4 @@ class FakeSpotExchange(Exchange):
 
         order.status = Order.Status.FILLED
         logger.debug(f"Order(ID={id(order)}) Filled: {order}, transaction={trans}")
-
         return order

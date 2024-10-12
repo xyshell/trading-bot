@@ -13,7 +13,7 @@ import tradingbot.util as util
 
 
 def check_mode(v: str) -> str:
-    assert v in {"backtest", "paper", "live"}, f"mode must be one of 'backtest', 'paper' or 'live', got {v}"
+    assert v in {"backtest", "live"}, f"mode must be one of 'backtest' or 'live', got {v}"
     return v
 
 
@@ -241,12 +241,11 @@ class Order(BaseModel):
     type: Type
     param: dict = Field(default_factory=dict)
     status: Status = Status.NEW
+    id_: str = Field(default=None)
 
     def model_post_init(self, __context):
-        logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={id(self)}) Created: {self}")
-
-    def id(self) -> int:
-        return id(self)
+        self.id_ = self.id_ or id(self)
+        logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
 
     @property
     def from_ticker(self) -> str:

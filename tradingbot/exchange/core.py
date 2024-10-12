@@ -18,3 +18,6 @@ class Exchange:
     @abc.abstractmethod
     def execute(self, now: pd.Timestamp, order: Order):
         pass
+
+    def update_orders(self, now: pd.Timestamp, orders: list[Order]):
+        pass

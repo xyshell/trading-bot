@@ -9,7 +9,6 @@ import psutil
 
 import pandas as pd
 
-import tradingbot as tb
 import tradingbot.util as util
 from tradingbot.model import Order
 from tradingbot.data.core import Data
@@ -30,7 +29,7 @@ class Pipeline(abc.ABC):
         pass
 
     @staticmethod
-    def _update_data(data: Data, now: pd.Timestamp, **kwargs):
+    def _update_data(now: pd.Timestamp, data: Data, **kwargs):
         tic = time.time()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = {executor.submit(data.update, now): data for data in data.values()}
@@ -78,28 +77,23 @@ class BacktestPipeline(Pipeline):
                     triggered.append(tri)
 
             if any(triggered):
-                logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
+                strategy.logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
                 # prepare info
-                self._update_data(strategy.data, now)
+                self._update_data(now, strategy.data)
+
+                # update status of pending orders
+                strategy.exchange.update_orders(now, strategy.pending_order)
 
                 # call strategy
-                orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
+                new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
                 # execute orders
-                orders = util.to_list(orders) + strategy.pending_order
+                orders = util.to_list(new_orders) + strategy.pending_order
                 for order in orders:
-                    strategy.exchange.execute(now, order)
-                for order in orders:
-                    if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
-                        strategy.order_history[now] = order
-                        if order in strategy.pending_order:
-                            strategy.pending_order.remove(order)
-                    elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
-                        if order not in strategy.pending_order:
-                            strategy.pending_order.append(order)
+                    order = strategy.exchange.execute(now, order)
+                strategy.exchange.update_orders(now, orders)
 
-                # collect result
                 # update market price for position
                 for pos in strategy.account.position:
                     for ticker, candle in strategy.data.ticker2candle.items():
@@ -122,7 +116,7 @@ class BacktestPipeline(Pipeline):
             strategy.plot(**plot_kwargs)
 
 
-class PaperPipeline(Pipeline):
+class LivePipeline(Pipeline):
     def __init__(self, now_factory: Callable[[], pd.Timestamp], refresh_rate: float = 0.0, **kwargs):
         super().__init__(now_factory)
         self._refresh_rate = refresh_rate
@@ -154,22 +148,20 @@ class PaperPipeline(Pipeline):
                     strategy.logger.debug(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
                     # prepare info
-                    self._update_data(strategy.data, now)
+                    self._update_data(now, strategy.data)
+
+                    # update status of pending orders
+                    strategy.exchange.update_orders(now, strategy.pending_order)
 
                     # call strategy
-                    orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
+                    new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
                     # execute orders
-                    orders = util.to_list(orders) + strategy.pending_order
+                    orders = util.to_list(new_orders) + strategy.pending_order
                     for order in orders:
-                        strategy.exchange.execute(now, order)
-                    for order in orders:
-                        if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
-                            strategy.order_history[now] = order
-                        elif order.status is Order.Status.PARTIAL_FILLED:
-                            strategy.pending_order.add(order)
+                        order = strategy.exchange.execute(now, order)
+                    strategy.exchange.update_orders(now, orders)
 
-                    # collect result
                     # update market price for position
                     for pos in strategy.account.position:
                         for ticker, candle in strategy.data.ticker2candle.items():
@@ -189,7 +181,3 @@ class PaperPipeline(Pipeline):
             Reporter.display(strategy)
 
             strategy.stop()
-
-
-class LivePipeline(PaperPipeline):
-    pass

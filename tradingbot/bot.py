@@ -8,7 +8,7 @@ import pandas as pd
 
 import tradingbot.util as util
 from tradingbot.model import Account, ModeType, DatetimeType
-from tradingbot.pipeline import BacktestPipeline, PaperPipeline, LivePipeline
+from tradingbot.pipeline import BacktestPipeline, LivePipeline
 from tradingbot.data.core import Data, DataManager
 from tradingbot.strategy import Strategy
 from tradingbot.exchange import Exchange
@@ -29,18 +29,16 @@ class Bot:
     ):
         """
         Args:
-            mode (str): "backtest", "paper" or "live"
+            mode (str): "backtest", or "live"
             start (str | datetime.datetime | pd.Timestamp, optional): start time. backtest mode only
             end (str | datetime.datetime | pd.Timestamp, optional): end time. backtest mode only
-            refresh_rate (float, optional): refresh rate in seconds. paper or live mode only
+            refresh_rate (float, optional): refresh rate in seconds. live mode only
             now_factory (Callable, optional): function to get current time. Defaults to pd.Timestamp.utcnow().tz_localize(None).
         """
         self._mode = mode
         self._pipeline = (
             BacktestPipeline(now_factory, start=start, end=end, **kwargs)
             if mode == "backtest"
-            else PaperPipeline(now_factory, refresh_rate=refresh_rate, **kwargs)
-            if mode == "paper"
             else LivePipeline(now_factory, refresh_rate=refresh_rate, **kwargs)
         )
         self._start = start

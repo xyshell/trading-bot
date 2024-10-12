@@ -24,7 +24,7 @@ def download(datefrom, dateto, ticker, freq, source, batch):
             pass
 
     bot = tb.Bot(
-        mode="backtest",  # or "paper" or "live"
+        mode="backtest",  # or "live"
         start=datefrom,
         end=dateto,
     )

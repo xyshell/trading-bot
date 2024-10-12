@@ -493,7 +493,7 @@ def mock_okx_fetch_order_filled():
 
 
 @pytest.fixture(scope="function")
-def mock_okx_fetch_order_cancelled():
+def mock_okx_fetch_order_canceled():
     mock = MagicMock(spec=ccxt.okx)
     mock.fetch_order.return_value = canceled_limit_order_response
     return mock
@@ -713,9 +713,52 @@ class TestCCXT:
         order = mock_okx_fetch_order_canceled.fetch_order("1877153720438898689", symbol="BTC/USDT")
         assert order["status"] == "canceled"
 
+    def test_fetch_order_status(self):  # fetch_order_status returns 'open' or 'closed'
+        mock_obx = MagicMock(spec=ccxt.okx)
+        mock_obx.fetch_order_status.return_value = "closed"
+        msg = mock_obx.fetch_order_status("1877153720438898689", symbol="BTC/USDT")
+        assert msg == "closed"
 
-# class TestCCXTExchange:
-#     def test_create_order(self):
-#         exchange = CCXTExchange()
-#         order = exchange.client.create_order(symbol="BTC/USDT", type="market", side="buy", amount=0.001)
-#         assert order
+        mock_obx.fetch_order_status.return_value = "open"
+        msg = mock_obx.fetch_order_status("1877153720438898689", symbol="BTC/USDT")
+        assert msg == "open"
+
+
+class TestCCXTExchange:
+    pass
+    # def test_create_order_market(self):
+    #     exchange = CCXTExchange()
+    #     order = exchange.client.create_order(symbol="BTC/USDT", type="market", side="buy", amount=0.001)
+    #     assert order
+
+    # def test_create_order_limit(self):
+    #     exchange = CCXTExchange()
+    #     order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
+    #     assert order
+
+    # def test_fetch_order(self):
+    #     exchange = CCXTExchange()
+    #     with pytest.raises(ccxt.errors.OrderNotFound):
+    #         exchange.client.fetch_order("1877153720438898689", symbol="BTC/USDT")
+
+    #     order = exchange.client.fetch_order("1877236041473081344", symbol="BTC/USDT")
+    #     assert order["status"] == "closed"
+
+    #     order = exchange.client.fetch_order("1877192719882797056", symbol="BTC/USDT")
+    #     assert order["status"] == "open"
+
+    # def test_fetch_order_status(self):
+    #     exchange = CCXTExchange()
+    #     with pytest.raises(ccxt.errors.OrderNotFound):
+    #         exchange.client.fetch_order_status("1877153720438898689", symbol="BTC/USDT")
+
+    #     msg = exchange.client.fetch_order_status("1877236041473081344", symbol="BTC/USDT")
+    #     assert msg == "closed"
+
+    #     msg = exchange.client.fetch_order_status("1877192719882797056", symbol="BTC/USDT")
+    #     assert msg == "open"
+
+    # def test_fetch_ticker(self):
+    #     exchange = CCXTExchange()
+    #     ticker = exchange.client.fetch_ticker("BTC/USDT")
+    #     assert ticker
