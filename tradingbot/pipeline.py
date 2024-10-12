@@ -10,7 +10,6 @@ import psutil
 import pandas as pd
 
 import tradingbot.util as util
-from tradingbot.model import Order
 from tradingbot.data.core import Data
 from tradingbot.strategy import Strategy
 from tradingbot.trigger import StandardInterval

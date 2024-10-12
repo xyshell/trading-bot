@@ -244,7 +244,7 @@ class Order(BaseModel):
     id_: str = Field(default=None)
 
     def model_post_init(self, __context):
-        self.id_ = self.id_ or id(self)
+        self.id_ = self.id_ or str(id(self))
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
 
     @property
