@@ -33,9 +33,20 @@ class CCXTExchange(Exchange):
         return self.client.fetch_ticker(self.get_symbol(ticker))["last"]
 
     def update_orders(self, now: pd.Timestamp, orders: list[Order]):
+        import ccxt
+
         for order in orders:
-            order_info = self.client.fetch_order_status(str(order.id), symbol=self.get_symbol(order.ticker))
-            match order_info:
+            if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:
+                self.strategy.order_history[now] = order
+                if order in self.strategy.pending_order:
+                    self.strategy.pending_order.remove(order)
+            if order.id_ is None:
+                continue
+            try:
+                status = self.client.fetch_order_status(str(order.id_), symbol=self.get_symbol(order.ticker))
+            except ccxt.errors.OrderNotFound:
+                continue
+            match status:
                 case "open":
                     self.strategy.logger.debug(f"Order(id={order.id_}) pending: {order}")
                     order.status = Order.Status.PENDING
@@ -43,13 +54,14 @@ class CCXTExchange(Exchange):
                         self.strategy.pending_order.append(order)
                 case "closed":
                     self.strategy.logger.info(f"Order(id={order.id_}) filled: {order}")
+                    order_info = self.client.fetch_order(str(order.id_), symbol=self.get_symbol(order.ticker))
                     order.status = Order.Status.FILLED
                     from_ticker, to_ticker = order.from_ticker, order.to_ticker
                     trans = Transaction(
-                        order.ticker,
-                        order.param["price"],
+                        ticker=order.ticker,
+                        prc=order.param["price"],
                         from_=(from_ticker, order_info["cost"]),
-                        to_=(to_ticker, order_info["amount"]),
+                        to_=(to_ticker, order_info["amount"] - order_info["fee"]["cost"]),
                         tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
                         timestamp=pd.Timestamp(order_info["datetime"]),
                     )
@@ -65,6 +77,7 @@ class CCXTExchange(Exchange):
                 case "canceled":
                     self.strategy.logger.info(f"Order(id={order.id_}) canceled: {order}")
                     order.status = Order.Status.CANCELED
+                    self.strategy.order_history[now] = order
                     if order in self.strategy.pending_order:
                         self.strategy.pending_order.remove(order)
 
@@ -79,15 +92,20 @@ class CCXTExchange(Exchange):
         """
         import ccxt
 
-        if order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
-            return order
-        elif order.status in {Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED}:
-            return order
-
-        assert order.status is Order.Status.NEW
+        assert order.status in {Order.Status.NEW, Order.Status.PENDING, Order.Status.CANCELED}, f"Invalid order status: {order.status}"
         if order.type not in {Order.Type.LIMIT, Order.Type.MARKET}:
             raise NotImplementedError(f"Order type {order.type} is not supported yet.")
 
+        if order.status is Order.Status.PENDING:
+            return order
+        elif order.status is Order.Status.CANCELED:
+            try:
+                self.client.cancel_order(str(order.id_), symbol=self.get_symbol(order.ticker))
+            except ccxt.errors.OrderNotFound as e:
+                self.strategy.logger.info(f"Order(id={order.id_}) Cancel failed, due to {e!r}. Do nothing.")
+            return order
+
+        # order.status is Order.Status.NEW
         quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
 
         # post order
@@ -96,7 +114,7 @@ class CCXTExchange(Exchange):
         side = "buy" if order.action is Order.Action.BUY else "sell"
         match order.size_type:
             case Order.SizeType.PCTG if side == "buy":  # buy BTC, cost USDT
-                price = self.param["price"] if type_ == "limit" else self.get_price(order.ticker)
+                price = order.param["price"] if type_ == "limit" else self.get_price(order.ticker)
                 amount = self.strategy.account[quote_ticker].qty * order.size / price
             case Order.SizeType.PCTG if side == "sell":  # sell BTC, cost BTC
                 amount = self.strategy.account[base_ticker].qty * order.size
@@ -108,14 +126,14 @@ class CCXTExchange(Exchange):
                 amount = order.size
         try:
             order_resp = self.client.create_order(
-                symbol=symbol, type=type_, side=order.action, amount=amount, price=order.param["price"] if type_ == "limit" else None
+                symbol=symbol, type=type_, side=side, amount=amount, price=order.param["price"] if type_ == "limit" else None
             )
         except ccxt.errors.InsufficientFunds as e:
-            self.strategy.logger.warning(f"Order(id={order.id_}) rejected: {order}, due to InsufficientFunds {e!r}")
+            self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e!r}")
             order.status = Order.Status.REJECTED
             return order
         except Exception as e:
-            self.strategy.logger.error(f"Order(id={order.id_}) failed: {order}, due to {e!r}")
+            self.strategy.logger.error(f"Order failed: {order}, due to {e!r}")
             order.status = Order.Status.REJECTED
             return order
 

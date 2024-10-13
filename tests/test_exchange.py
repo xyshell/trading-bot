@@ -1,13 +1,16 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 import ccxt
 
+from tradingbot.exchange.ccxt import CCXTExchange
+from tradingbot.model import Account, Order
 
 
 insufficient_funds_response = 'okx {"code":"1","data":[{"clOrdId":"e847386590ce4dBC41721bb12450fd4a","ordId":"","sCode":"51008","sMsg":"Order failed. Insufficient USDT balance in account. ","tag":"e847386590ce4dBC","ts":"1728445289108"}],"inTime":"1728445289108394","msg":"All operations failed","outTime":"1728445289108980"}'
 
-unfilled_limit_order_response = {
+create_limit_order_resp = {
     "info": {
         "clOrdId": "e847386590ce4dBCdedee55fb0dc9ab7",
         "ordId": "1877153720438898689",
@@ -44,7 +47,7 @@ unfilled_limit_order_response = {
     "fees": [],
 }
 
-filled_market_order_response = {
+create_market_order_resp = {
     "info": {
         "clOrdId": "e847386590ce4dBC203f7abec8c7dcd9",
         "ordId": "1877236041473081344",
@@ -81,7 +84,7 @@ filled_market_order_response = {
     "fees": [],
 }
 
-canceled_limit_order_response = {
+fetch_order_canceled_limit_order_resp = {
     "info": {
         "accFillSz": "0",
         "algoClOrdId": "",
@@ -163,7 +166,529 @@ canceled_limit_order_response = {
     "fees": [{"cost": 0.0, "currency": "BTC"}],
 }
 
-trades_response = [
+fetch_order_unfilled_limit_order_resp = {
+    "info": {
+        "accFillSz": "0",
+        "algoClOrdId": "",
+        "algoId": "",
+        "attachAlgoClOrdId": "",
+        "attachAlgoOrds": [],
+        "avgPx": "",
+        "cTime": "1728445940347",
+        "cancelSource": "",
+        "cancelSourceReason": "",
+        "category": "normal",
+        "ccy": "",
+        "clOrdId": "e847386590ce4dBCdedee55fb0dc9ab7",
+        "fee": "0",
+        "feeCcy": "BTC",
+        "fillPx": "",
+        "fillSz": "0",
+        "fillTime": "",
+        "instId": "BTC-USDT",
+        "instType": "SPOT",
+        "isTpLimit": "false",
+        "lever": "",
+        "linkedAlgoOrd": {"algoId": ""},
+        "ordId": "1877153720438898689",
+        "ordType": "limit",
+        "pnl": "0",
+        "posSide": "net",
+        "px": "30000",
+        "pxType": "",
+        "pxUsd": "",
+        "pxVol": "",
+        "quickMgnType": "",
+        "rebate": "0",
+        "rebateCcy": "USDT",
+        "reduceOnly": "false",
+        "side": "buy",
+        "slOrdPx": "",
+        "slTriggerPx": "",
+        "slTriggerPxType": "",
+        "source": "",
+        "state": "live",
+        "stpId": "",
+        "stpMode": "cancel_maker",
+        "sz": "0.01",
+        "tag": "e847386590ce4dBC",
+        "tdMode": "cash",
+        "tgtCcy": "",
+        "tpOrdPx": "",
+        "tpTriggerPx": "",
+        "tpTriggerPxType": "",
+        "tradeId": "",
+        "uTime": "1728445940347",
+    },
+    "id": "1877153720438898689",
+    "clientOrderId": "e847386590ce4dBCdedee55fb0dc9ab7",
+    "timestamp": 1728445940347,
+    "datetime": "2024-10-09T03:52:20.347Z",
+    "lastTradeTimestamp": None,
+    "lastUpdateTimestamp": 1728445940347,
+    "symbol": "BTC/USDT",
+    "type": "limit",
+    "timeInForce": None,
+    "postOnly": None,
+    "side": "buy",
+    "price": 30000.0,
+    "stopLossPrice": None,
+    "takeProfitPrice": None,
+    "stopPrice": None,
+    "triggerPrice": None,
+    "average": None,
+    "cost": 0.0,
+    "amount": 0.01,
+    "filled": 0.0,
+    "remaining": 0.01,
+    "status": "open",
+    "fee": {"cost": 0.0, "currency": "BTC"},
+    "trades": [],
+    "reduceOnly": False,
+    "fees": [{"cost": 0.0, "currency": "BTC"}],
+}
+
+fetch_order_filled_market_order_buy_resp = {
+    "info": {
+        "accFillSz": "0.001",
+        "algoClOrdId": "",
+        "algoId": "",
+        "attachAlgoClOrdId": "",
+        "attachAlgoOrds": [],
+        "avgPx": "62398.1",
+        "cTime": "1728448393705",
+        "cancelSource": "",
+        "cancelSourceReason": "",
+        "category": "normal",
+        "ccy": "",
+        "clOrdId": "e847386590ce4dBC203f7abec8c7dcd9",
+        "fee": "-0.000001",
+        "feeCcy": "BTC",
+        "fillPx": "62398.1",
+        "fillSz": "0.001",
+        "fillTime": "1728448393707",
+        "instId": "BTC-USDT",
+        "instType": "SPOT",
+        "isTpLimit": "false",
+        "lever": "",
+        "linkedAlgoOrd": {"algoId": ""},
+        "ordId": "1877236041473081344",
+        "ordType": "market",
+        "pnl": "0",
+        "posSide": "net",
+        "px": "",
+        "pxType": "",
+        "pxUsd": "",
+        "pxVol": "",
+        "quickMgnType": "",
+        "rebate": "0",
+        "rebateCcy": "USDT",
+        "reduceOnly": "false",
+        "side": "buy",
+        "slOrdPx": "",
+        "slTriggerPx": "",
+        "slTriggerPxType": "",
+        "source": "",
+        "state": "filled",
+        "stpId": "",
+        "stpMode": "cancel_maker",
+        "sz": "0.001",
+        "tag": "e847386590ce4dBC",
+        "tdMode": "cash",
+        "tgtCcy": "base_ccy",
+        "tpOrdPx": "",
+        "tpTriggerPx": "",
+        "tpTriggerPxType": "",
+        "tradeId": "582529691",
+        "uTime": "1728448393711",
+    },
+    "id": "1877236041473081344",
+    "clientOrderId": "e847386590ce4dBC203f7abec8c7dcd9",
+    "timestamp": 1728448393705,
+    "datetime": "2024-10-09T04:33:13.705Z",
+    "lastTradeTimestamp": 1728448393707,
+    "lastUpdateTimestamp": 1728448393711,
+    "symbol": "BTC/USDT",
+    "type": "market",
+    "timeInForce": "IOC",
+    "postOnly": None,
+    "side": "buy",
+    "price": 62398.1,
+    "stopLossPrice": None,
+    "takeProfitPrice": None,
+    "stopPrice": None,
+    "triggerPrice": None,
+    "average": 62398.1,
+    "cost": 62.3981,
+    "amount": 0.001,
+    "filled": 0.001,
+    "remaining": 0.0,
+    "status": "closed",
+    "fee": {"cost": 1e-06, "currency": "BTC"},
+    "trades": [],
+    "reduceOnly": False,
+    "fees": [{"cost": 1e-06, "currency": "BTC"}],
+}
+
+fetch_order_filled_market_order_sell_resp = {
+    "info": {
+        "accFillSz": "0.001",
+        "algoClOrdId": "",
+        "algoId": "",
+        "attachAlgoClOrdId": "",
+        "attachAlgoOrds": [],
+        "avgPx": "62922",
+        "cTime": "1728801454900",
+        "cancelSource": "",
+        "cancelSourceReason": "",
+        "category": "normal",
+        "ccy": "",
+        "clOrdId": "e847386590ce4dBC6d586b89297ca55",
+        "fee": "-0.062922",
+        "feeCcy": "USDT",
+        "fillPx": "62922",
+        "fillSz": "0.001",
+        "fillTime": "1728801454901",
+        "instId": "BTC-USDT",
+        "instType": "SPOT",
+        "isTpLimit": "false",
+        "lever": "",
+        "linkedAlgoOrd": {"algoId": ""},
+        "ordId": "1889082809332547584",
+        "ordType": "market",
+        "pnl": "0",
+        "posSide": "net",
+        "px": "",
+        "pxType": "",
+        "pxUsd": "",
+        "pxVol": "",
+        "quickMgnType": "",
+        "rebate": "0",
+        "rebateCcy": "BTC",
+        "reduceOnly": "false",
+        "side": "sell",
+        "slOrdPx": "",
+        "slTriggerPx": "",
+        "slTriggerPxType": "",
+        "source": "",
+        "state": "filled",
+        "stpId": "",
+        "stpMode": "cancel_maker",
+        "sz": "0.001",
+        "tag": "e847386590ce4dBC",
+        "tdMode": "cash",
+        "tgtCcy": "base_ccy",
+        "tpOrdPx": "",
+        "tpTriggerPx": "",
+        "tpTriggerPxType": "",
+        "tradeId": "584090326",
+        "uTime": "1728801454903",
+    },
+    "id": "1889082809332547584",
+    "clientOrderId": "e847386590ce4dBC6d586b89297ca55",
+    "timestamp": 1728801454900,
+    "datetime": "2024-10-13T06:37:34.900Z",
+    "lastTradeTimestamp": 1728801454901,
+    "lastUpdateTimestamp": 1728801454903,
+    "symbol": "BTC/USDT",
+    "type": "market",
+    "timeInForce": "IOC",
+    "postOnly": None,
+    "side": "sell",
+    "price": 62922.0,
+    "stopLossPrice": None,
+    "takeProfitPrice": None,
+    "stopPrice": None,
+    "triggerPrice": None,
+    "average": 62922.0,
+    "cost": 62.922,
+    "amount": 0.001,
+    "filled": 0.001,
+    "remaining": 0.0,
+    "status": "closed",
+    "fee": {"cost": 0.062922, "currency": "USDT"},
+    "trades": [],
+    "reduceOnly": False,
+    "fees": [{"cost": 0.062922, "currency": "USDT"}],
+}
+
+fetch_open_orders_resp = [
+    {
+        "info": {
+            "accFillSz": "0",
+            "algoClOrdId": "",
+            "algoId": "",
+            "attachAlgoClOrdId": "",
+            "attachAlgoOrds": [],
+            "avgPx": "",
+            "cTime": "1728447102621",
+            "cancelSource": "",
+            "cancelSourceReason": "",
+            "category": "normal",
+            "ccy": "",
+            "clOrdId": "e847386590ce4dBCdfc65825f98c8f14",
+            "fee": "0",
+            "feeCcy": "BTC",
+            "fillPx": "",
+            "fillSz": "0",
+            "fillTime": "",
+            "instId": "BTC-USDT",
+            "instType": "SPOT",
+            "isTpLimit": "false",
+            "lever": "",
+            "linkedAlgoOrd": {"algoId": ""},
+            "ordId": "1877192719882797056",
+            "ordType": "limit",
+            "pnl": "0",
+            "posSide": "net",
+            "px": "30000",
+            "pxType": "",
+            "pxUsd": "",
+            "pxVol": "",
+            "quickMgnType": "",
+            "rebate": "0",
+            "rebateCcy": "USDT",
+            "reduceOnly": "false",
+            "side": "buy",
+            "slOrdPx": "",
+            "slTriggerPx": "",
+            "slTriggerPxType": "",
+            "source": "",
+            "state": "live",
+            "stpId": "",
+            "stpMode": "cancel_maker",
+            "sz": "0.01",
+            "tag": "e847386590ce4dBC",
+            "tdMode": "cash",
+            "tgtCcy": "",
+            "tpOrdPx": "",
+            "tpTriggerPx": "",
+            "tpTriggerPxType": "",
+            "tradeId": "",
+            "uTime": "1728447102621",
+        },
+        "id": "1877192719882797056",
+        "clientOrderId": "e847386590ce4dBCdfc65825f98c8f14",
+        "timestamp": 1728447102621,
+        "datetime": "2024-10-09T04:11:42.621Z",
+        "lastTradeTimestamp": None,
+        "lastUpdateTimestamp": 1728447102621,
+        "symbol": "BTC/USDT",
+        "type": "limit",
+        "timeInForce": None,
+        "postOnly": None,
+        "side": "buy",
+        "price": 30000.0,
+        "stopLossPrice": None,
+        "takeProfitPrice": None,
+        "stopPrice": None,
+        "triggerPrice": None,
+        "average": None,
+        "cost": 0.0,
+        "amount": 0.01,
+        "filled": 0.0,
+        "remaining": 0.01,
+        "status": "open",
+        "fee": {"cost": 0.0, "currency": "BTC"},
+        "trades": [],
+        "reduceOnly": False,
+        "fees": [{"cost": 0.0, "currency": "BTC"}],
+    }
+]
+
+fetch_closed_orders_resp = [
+    {
+        "info": {
+            "accFillSz": "0.001",
+            "algoClOrdId": "",
+            "algoId": "",
+            "attachAlgoClOrdId": "",
+            "attachAlgoOrds": [],
+            "avgPx": "62398.1",
+            "cTime": "1728448393705",
+            "cancelSource": "",
+            "cancelSourceReason": "",
+            "category": "normal",
+            "ccy": "",
+            "clOrdId": "e847386590ce4dBC203f7abec8c7dcd9",
+            "fee": "-0.000001",
+            "feeCcy": "BTC",
+            "fillPx": "62398.1",
+            "fillSz": "0.001",
+            "fillTime": "1728448393707",
+            "instId": "BTC-USDT",
+            "instType": "SPOT",
+            "isTpLimit": "false",
+            "lever": "",
+            "linkedAlgoOrd": {"algoId": ""},
+            "ordId": "1877236041473081344",
+            "ordType": "market",
+            "pnl": "0",
+            "posSide": "",
+            "px": "",
+            "pxType": "",
+            "pxUsd": "",
+            "pxVol": "",
+            "quickMgnType": "",
+            "rebate": "0",
+            "rebateCcy": "USDT",
+            "reduceOnly": "false",
+            "side": "buy",
+            "slOrdPx": "",
+            "slTriggerPx": "",
+            "slTriggerPxType": "",
+            "source": "",
+            "state": "filled",
+            "stpId": "",
+            "stpMode": "cancel_maker",
+            "sz": "0.001",
+            "tag": "e847386590ce4dBC",
+            "tdMode": "cash",
+            "tgtCcy": "base_ccy",
+            "tpOrdPx": "",
+            "tpTriggerPx": "",
+            "tpTriggerPxType": "",
+            "tradeId": "582529691",
+            "uTime": "1728448393708",
+        },
+        "id": "1877236041473081344",
+        "clientOrderId": "e847386590ce4dBC203f7abec8c7dcd9",
+        "timestamp": 1728448393705,
+        "datetime": "2024-10-09T04:33:13.705Z",
+        "lastTradeTimestamp": 1728448393707,
+        "lastUpdateTimestamp": 1728448393708,
+        "symbol": "BTC/USDT",
+        "type": "market",
+        "timeInForce": "IOC",
+        "postOnly": None,
+        "side": "buy",
+        "price": 62398.1,
+        "stopLossPrice": None,
+        "takeProfitPrice": None,
+        "stopPrice": None,
+        "triggerPrice": None,
+        "average": 62398.1,
+        "cost": 62.3981,
+        "amount": 0.001,
+        "filled": 0.001,
+        "remaining": 0.0,
+        "status": "closed",
+        "fee": {"cost": 1e-06, "currency": "BTC"},
+        "trades": [],
+        "reduceOnly": False,
+        "fees": [{"cost": 1e-06, "currency": "BTC"}],
+    }
+]
+
+fetch_balance_resp = {
+    "info": {
+        "code": "0",
+        "data": [
+            {
+                "adjEq": "",
+                "borrowFroz": "",
+                "details": [
+                    {
+                        "accAvgPx": "",
+                        "availBal": "1009.9",
+                        "availEq": "",
+                        "borrowFroz": "",
+                        "cashBal": "1009.9",
+                        "ccy": "USDT",
+                        "clSpotInUseAmt": "",
+                        "crossLiab": "",
+                        "disEq": "1009.627327",
+                        "eq": "1009.9",
+                        "eqUsd": "1009.627327",
+                        "fixedBal": "0",
+                        "frozenBal": "0",
+                        "imr": "",
+                        "interest": "",
+                        "isoEq": "0",
+                        "isoLiab": "",
+                        "isoUpl": "",
+                        "liab": "",
+                        "maxLoan": "",
+                        "maxSpotInUse": "",
+                        "mgnRatio": "",
+                        "mmr": "",
+                        "notionalLever": "",
+                        "openAvgPx": "",
+                        "ordFrozen": "0",
+                        "rewardBal": "",
+                        "smtSyncEq": "0",
+                        "spotBal": "",
+                        "spotInUseAmt": "",
+                        "spotIsoBal": "0",
+                        "spotUpl": "",
+                        "spotUplRatio": "",
+                        "stgyEq": "0",
+                        "totalPnl": "",
+                        "totalPnlRatio": "",
+                        "twap": "0",
+                        "uTime": "1728445895160",
+                        "upl": "",
+                        "uplLiab": "",
+                    }
+                ],
+                "imr": "",
+                "isoEq": "",
+                "mgnRatio": "",
+                "mmr": "",
+                "notionalUsd": "",
+                "ordFroz": "",
+                "totalEq": "1009.627327",
+                "uTime": "1728447007264",
+                "upl": "",
+            }
+        ],
+        "msg": "",
+    },
+    "USDT": {"free": 1009.9, "used": 0.0, "total": 1009.9},
+    "timestamp": 1728447007264,
+    "datetime": "2024-10-09T04:10:07.264Z",
+    "free": {"USDT": 1009.9},
+    "used": {"USDT": 0.0},
+    "total": {"USDT": 1009.9},
+}
+
+cancel_order_resp = {
+    "info": {
+        "clOrdId": "e847386590ce4dBCdfc65825f98c8f14",
+        "ordId": "1877192719882797056",
+        "sCode": "0",
+        "sMsg": "",
+        "ts": "1728796370694",
+    },
+    "id": "1877192719882797056",
+    "clientOrderId": "e847386590ce4dBCdfc65825f98c8f14",
+    "timestamp": None,
+    "datetime": None,
+    "lastTradeTimestamp": None,
+    "lastUpdateTimestamp": None,
+    "symbol": "BTC/USDT",
+    "type": None,
+    "timeInForce": None,
+    "postOnly": None,
+    "side": None,
+    "price": None,
+    "stopLossPrice": None,
+    "takeProfitPrice": None,
+    "stopPrice": None,
+    "triggerPrice": None,
+    "average": None,
+    "cost": None,
+    "amount": None,
+    "filled": None,
+    "remaining": None,
+    "status": None,
+    "fee": None,
+    "trades": [],
+    "reduceOnly": False,
+    "fees": [],
+}
+
+fetch_my_trades_resp = [
     {
         "info": {
             "fillSz": "0.001",
@@ -219,454 +744,60 @@ def mock_okx_create_order_insufficient_funds():
 @pytest.fixture(scope="function")
 def mock_okx_create_order_unfilled_limit_order():
     mock = MagicMock(spec=ccxt.okx)
-    mock.create_order.return_value = unfilled_limit_order_response
+    mock.create_order.return_value = create_limit_order_resp
     return mock
 
 
 @pytest.fixture(scope="function")
 def mock_okx_create_order_market():
     mock = MagicMock(spec=ccxt.okx)
-    mock.create_order.return_value = filled_market_order_response
+    mock.create_order.return_value = create_market_order_resp
     return mock
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_order_unfilled():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_order.return_value = {
-        "info": {
-            "accFillSz": "0",
-            "algoClOrdId": "",
-            "algoId": "",
-            "attachAlgoClOrdId": "",
-            "attachAlgoOrds": [],
-            "avgPx": "",
-            "cTime": "1728445940347",
-            "cancelSource": "",
-            "cancelSourceReason": "",
-            "category": "normal",
-            "ccy": "",
-            "clOrdId": "e847386590ce4dBCdedee55fb0dc9ab7",
-            "fee": "0",
-            "feeCcy": "BTC",
-            "fillPx": "",
-            "fillSz": "0",
-            "fillTime": "",
-            "instId": "BTC-USDT",
-            "instType": "SPOT",
-            "isTpLimit": "false",
-            "lever": "",
-            "linkedAlgoOrd": {"algoId": ""},
-            "ordId": "1877153720438898689",
-            "ordType": "limit",
-            "pnl": "0",
-            "posSide": "net",
-            "px": "30000",
-            "pxType": "",
-            "pxUsd": "",
-            "pxVol": "",
-            "quickMgnType": "",
-            "rebate": "0",
-            "rebateCcy": "USDT",
-            "reduceOnly": "false",
-            "side": "buy",
-            "slOrdPx": "",
-            "slTriggerPx": "",
-            "slTriggerPxType": "",
-            "source": "",
-            "state": "live",
-            "stpId": "",
-            "stpMode": "cancel_maker",
-            "sz": "0.01",
-            "tag": "e847386590ce4dBC",
-            "tdMode": "cash",
-            "tgtCcy": "",
-            "tpOrdPx": "",
-            "tpTriggerPx": "",
-            "tpTriggerPxType": "",
-            "tradeId": "",
-            "uTime": "1728445940347",
-        },
-        "id": "1877153720438898689",
-        "clientOrderId": "e847386590ce4dBCdedee55fb0dc9ab7",
-        "timestamp": 1728445940347,
-        "datetime": "2024-10-09T03:52:20.347Z",
-        "lastTradeTimestamp": None,
-        "lastUpdateTimestamp": 1728445940347,
-        "symbol": "BTC/USDT",
-        "type": "limit",
-        "timeInForce": None,
-        "postOnly": None,
-        "side": "buy",
-        "price": 30000.0,
-        "stopLossPrice": None,
-        "takeProfitPrice": None,
-        "stopPrice": None,
-        "triggerPrice": None,
-        "average": None,
-        "cost": 0.0,
-        "amount": 0.01,
-        "filled": 0.0,
-        "remaining": 0.01,
-        "status": "open",
-        "fee": {"cost": 0.0, "currency": "BTC"},
-        "trades": [],
-        "reduceOnly": False,
-        "fees": [{"cost": 0.0, "currency": "BTC"}],
-    }
+    mock.fetch_order.return_value = fetch_order_unfilled_limit_order_resp
     return mock
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_open_orders():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_open_orders.return_value = [
-        {
-            "info": {
-                "accFillSz": "0",
-                "algoClOrdId": "",
-                "algoId": "",
-                "attachAlgoClOrdId": "",
-                "attachAlgoOrds": [],
-                "avgPx": "",
-                "cTime": "1728447102621",
-                "cancelSource": "",
-                "cancelSourceReason": "",
-                "category": "normal",
-                "ccy": "",
-                "clOrdId": "e847386590ce4dBCdfc65825f98c8f14",
-                "fee": "0",
-                "feeCcy": "BTC",
-                "fillPx": "",
-                "fillSz": "0",
-                "fillTime": "",
-                "instId": "BTC-USDT",
-                "instType": "SPOT",
-                "isTpLimit": "false",
-                "lever": "",
-                "linkedAlgoOrd": {"algoId": ""},
-                "ordId": "1877192719882797056",
-                "ordType": "limit",
-                "pnl": "0",
-                "posSide": "net",
-                "px": "30000",
-                "pxType": "",
-                "pxUsd": "",
-                "pxVol": "",
-                "quickMgnType": "",
-                "rebate": "0",
-                "rebateCcy": "USDT",
-                "reduceOnly": "false",
-                "side": "buy",
-                "slOrdPx": "",
-                "slTriggerPx": "",
-                "slTriggerPxType": "",
-                "source": "",
-                "state": "live",
-                "stpId": "",
-                "stpMode": "cancel_maker",
-                "sz": "0.01",
-                "tag": "e847386590ce4dBC",
-                "tdMode": "cash",
-                "tgtCcy": "",
-                "tpOrdPx": "",
-                "tpTriggerPx": "",
-                "tpTriggerPxType": "",
-                "tradeId": "",
-                "uTime": "1728447102621",
-            },
-            "id": "1877192719882797056",
-            "clientOrderId": "e847386590ce4dBCdfc65825f98c8f14",
-            "timestamp": 1728447102621,
-            "datetime": "2024-10-09T04:11:42.621Z",
-            "lastTradeTimestamp": None,
-            "lastUpdateTimestamp": 1728447102621,
-            "symbol": "BTC/USDT",
-            "type": "limit",
-            "timeInForce": None,
-            "postOnly": None,
-            "side": "buy",
-            "price": 30000.0,
-            "stopLossPrice": None,
-            "takeProfitPrice": None,
-            "stopPrice": None,
-            "triggerPrice": None,
-            "average": None,
-            "cost": 0.0,
-            "amount": 0.01,
-            "filled": 0.0,
-            "remaining": 0.01,
-            "status": "open",
-            "fee": {"cost": 0.0, "currency": "BTC"},
-            "trades": [],
-            "reduceOnly": False,
-            "fees": [{"cost": 0.0, "currency": "BTC"}],
-        }
-    ]
+    mock.fetch_open_orders.return_value = fetch_open_orders_resp
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_order_filled():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_order.return_value = {
-        "info": {
-            "accFillSz": "0.001",
-            "algoClOrdId": "",
-            "algoId": "",
-            "attachAlgoClOrdId": "",
-            "attachAlgoOrds": [],
-            "avgPx": "62398.1",
-            "cTime": "1728448393705",
-            "cancelSource": "",
-            "cancelSourceReason": "",
-            "category": "normal",
-            "ccy": "",
-            "clOrdId": "e847386590ce4dBC203f7abec8c7dcd9",
-            "fee": "-0.000001",
-            "feeCcy": "BTC",
-            "fillPx": "62398.1",
-            "fillSz": "0.001",
-            "fillTime": "1728448393707",
-            "instId": "BTC-USDT",
-            "instType": "SPOT",
-            "isTpLimit": "false",
-            "lever": "",
-            "linkedAlgoOrd": {"algoId": ""},
-            "ordId": "1877236041473081344",
-            "ordType": "market",
-            "pnl": "0",
-            "posSide": "net",
-            "px": "",
-            "pxType": "",
-            "pxUsd": "",
-            "pxVol": "",
-            "quickMgnType": "",
-            "rebate": "0",
-            "rebateCcy": "USDT",
-            "reduceOnly": "false",
-            "side": "buy",
-            "slOrdPx": "",
-            "slTriggerPx": "",
-            "slTriggerPxType": "",
-            "source": "",
-            "state": "filled",
-            "stpId": "",
-            "stpMode": "cancel_maker",
-            "sz": "0.001",
-            "tag": "e847386590ce4dBC",
-            "tdMode": "cash",
-            "tgtCcy": "base_ccy",
-            "tpOrdPx": "",
-            "tpTriggerPx": "",
-            "tpTriggerPxType": "",
-            "tradeId": "582529691",
-            "uTime": "1728448393711",
-        },
-        "id": "1877236041473081344",
-        "clientOrderId": "e847386590ce4dBC203f7abec8c7dcd9",
-        "timestamp": 1728448393705,
-        "datetime": "2024-10-09T04:33:13.705Z",
-        "lastTradeTimestamp": 1728448393707,
-        "lastUpdateTimestamp": 1728448393711,
-        "symbol": "BTC/USDT",
-        "type": "market",
-        "timeInForce": "IOC",
-        "postOnly": None,
-        "side": "buy",
-        "price": 62398.1,
-        "stopLossPrice": None,
-        "takeProfitPrice": None,
-        "stopPrice": None,
-        "triggerPrice": None,
-        "average": 62398.1,
-        "cost": 62.3981,
-        "amount": 0.001,
-        "filled": 0.001,
-        "remaining": 0.0,
-        "status": "closed",
-        "fee": {"cost": 1e-06, "currency": "BTC"},
-        "trades": [],
-        "reduceOnly": False,
-        "fees": [{"cost": 1e-06, "currency": "BTC"}],
-    }
+    mock.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_order_canceled():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_order.return_value = canceled_limit_order_response
+    mock.fetch_order.return_value = fetch_order_canceled_limit_order_resp
     return mock
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_close_orders():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_closed_orders.return_value = [
-        {
-            "info": {
-                "accFillSz": "0.001",
-                "algoClOrdId": "",
-                "algoId": "",
-                "attachAlgoClOrdId": "",
-                "attachAlgoOrds": [],
-                "avgPx": "62398.1",
-                "cTime": "1728448393705",
-                "cancelSource": "",
-                "cancelSourceReason": "",
-                "category": "normal",
-                "ccy": "",
-                "clOrdId": "e847386590ce4dBC203f7abec8c7dcd9",
-                "fee": "-0.000001",
-                "feeCcy": "BTC",
-                "fillPx": "62398.1",
-                "fillSz": "0.001",
-                "fillTime": "1728448393707",
-                "instId": "BTC-USDT",
-                "instType": "SPOT",
-                "isTpLimit": "false",
-                "lever": "",
-                "linkedAlgoOrd": {"algoId": ""},
-                "ordId": "1877236041473081344",
-                "ordType": "market",
-                "pnl": "0",
-                "posSide": "",
-                "px": "",
-                "pxType": "",
-                "pxUsd": "",
-                "pxVol": "",
-                "quickMgnType": "",
-                "rebate": "0",
-                "rebateCcy": "USDT",
-                "reduceOnly": "false",
-                "side": "buy",
-                "slOrdPx": "",
-                "slTriggerPx": "",
-                "slTriggerPxType": "",
-                "source": "",
-                "state": "filled",
-                "stpId": "",
-                "stpMode": "cancel_maker",
-                "sz": "0.001",
-                "tag": "e847386590ce4dBC",
-                "tdMode": "cash",
-                "tgtCcy": "base_ccy",
-                "tpOrdPx": "",
-                "tpTriggerPx": "",
-                "tpTriggerPxType": "",
-                "tradeId": "582529691",
-                "uTime": "1728448393708",
-            },
-            "id": "1877236041473081344",
-            "clientOrderId": "e847386590ce4dBC203f7abec8c7dcd9",
-            "timestamp": 1728448393705,
-            "datetime": "2024-10-09T04:33:13.705Z",
-            "lastTradeTimestamp": 1728448393707,
-            "lastUpdateTimestamp": 1728448393708,
-            "symbol": "BTC/USDT",
-            "type": "market",
-            "timeInForce": "IOC",
-            "postOnly": None,
-            "side": "buy",
-            "price": 62398.1,
-            "stopLossPrice": None,
-            "takeProfitPrice": None,
-            "stopPrice": None,
-            "triggerPrice": None,
-            "average": 62398.1,
-            "cost": 62.3981,
-            "amount": 0.001,
-            "filled": 0.001,
-            "remaining": 0.0,
-            "status": "closed",
-            "fee": {"cost": 1e-06, "currency": "BTC"},
-            "trades": [],
-            "reduceOnly": False,
-            "fees": [{"cost": 1e-06, "currency": "BTC"}],
-        }
-    ]
+    mock.fetch_closed_orders.return_value = fetch_closed_orders_resp
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_balance():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_balance.return_value = {
-        "info": {
-            "code": "0",
-            "data": [
-                {
-                    "adjEq": "",
-                    "borrowFroz": "",
-                    "details": [
-                        {
-                            "accAvgPx": "",
-                            "availBal": "1009.9",
-                            "availEq": "",
-                            "borrowFroz": "",
-                            "cashBal": "1009.9",
-                            "ccy": "USDT",
-                            "clSpotInUseAmt": "",
-                            "crossLiab": "",
-                            "disEq": "1009.627327",
-                            "eq": "1009.9",
-                            "eqUsd": "1009.627327",
-                            "fixedBal": "0",
-                            "frozenBal": "0",
-                            "imr": "",
-                            "interest": "",
-                            "isoEq": "0",
-                            "isoLiab": "",
-                            "isoUpl": "",
-                            "liab": "",
-                            "maxLoan": "",
-                            "maxSpotInUse": "",
-                            "mgnRatio": "",
-                            "mmr": "",
-                            "notionalLever": "",
-                            "openAvgPx": "",
-                            "ordFrozen": "0",
-                            "rewardBal": "",
-                            "smtSyncEq": "0",
-                            "spotBal": "",
-                            "spotInUseAmt": "",
-                            "spotIsoBal": "0",
-                            "spotUpl": "",
-                            "spotUplRatio": "",
-                            "stgyEq": "0",
-                            "totalPnl": "",
-                            "totalPnlRatio": "",
-                            "twap": "0",
-                            "uTime": "1728445895160",
-                            "upl": "",
-                            "uplLiab": "",
-                        }
-                    ],
-                    "imr": "",
-                    "isoEq": "",
-                    "mgnRatio": "",
-                    "mmr": "",
-                    "notionalUsd": "",
-                    "ordFroz": "",
-                    "totalEq": "1009.627327",
-                    "uTime": "1728447007264",
-                    "upl": "",
-                }
-            ],
-            "msg": "",
-        },
-        "USDT": {"free": 1009.9, "used": 0.0, "total": 1009.9},
-        "timestamp": 1728447007264,
-        "datetime": "2024-10-09T04:10:07.264Z",
-        "free": {"USDT": 1009.9},
-        "used": {"USDT": 0.0},
-        "total": {"USDT": 1009.9},
-    }
+    mock.fetch_balance.return_value = fetch_balance_resp
     return mock
 
 
 @pytest.fixture(scope="function")
 def mock_okx_fetch_my_trades():
     mock = MagicMock(spec=ccxt.okx)
-    mock.fetch_my_trades.return_value = trades_response
+    mock.fetch_my_trades.return_value = fetch_my_trades_resp
     return mock
 
 
@@ -724,10 +855,180 @@ class TestCCXT:
 
 
 class TestCCXTExchange:
-    pass
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_new2filled(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.create_order.return_value = create_market_order_resp
+        mock_client.fetch_order_status.return_value = "closed"
+        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+
+        exchange.strategy = MagicMock()
+        exchange.strategy.account = Account.create({"USDT": 1000})
+        exchange.strategy.pending_order = []
+        now = pd.Timestamp("2024-01-01 00:00:00")
+        new_order = Order(action="BUY", ticker="USDT/BTC", size_type="PCTG", size=0.5, type="LIMIT", param={"price": 62398.1})
+        assert new_order.status is Order.Status.NEW
+        exchange.execute(now=now, order=new_order)
+        mock_client.create_order.assert_called_once_with(
+            symbol="BTC/USDT", type="limit", side="buy", amount=0.00801306450036139, price=62398.1
+        )
+        assert new_order.status is Order.Status.PENDING
+        assert new_order.id_ is not None
+        exchange.update_orders(now=now, orders=[new_order])
+        assert new_order.status is Order.Status.FILLED
+        assert new_order not in exchange.strategy.pending_order
+
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_new2pending(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.create_order.return_value = create_market_order_resp
+        mock_client.fetch_order_status.return_value = "open"
+
+        exchange.strategy = MagicMock()
+        exchange.strategy.account = Account.create({"USDT": 1000})
+        exchange.strategy.pending_order = []
+        now = pd.Timestamp("2024-01-01 00:00:00")
+        new_order = Order(action="BUY", ticker="USDT/BTC", size_type="PCTG", size=0.5, type="LIMIT", param={"price": 62398.1})
+        assert new_order.status is Order.Status.NEW
+        exchange.execute(now=now, order=new_order)
+        mock_client.create_order.assert_called_once_with(
+            symbol="BTC/USDT", type="limit", side="buy", amount=0.00801306450036139, price=62398.1
+        )
+        assert new_order.status is Order.Status.PENDING
+        assert new_order.id_ is not None
+        exchange.update_orders(now=now, orders=[new_order])
+        assert new_order.status is Order.Status.PENDING
+        assert new_order in exchange.strategy.pending_order
+
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_pending2filled(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.create_order.return_value = create_market_order_resp
+        mock_client.fetch_order_status.return_value = "closed"
+        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+
+        exchange.strategy = MagicMock()
+        exchange.strategy.account = Account.create({"USDT": 1000})
+        now = pd.Timestamp("2024-01-01 00:00:00")
+        pending_order = Order(
+            action="BUY",
+            ticker="USDT/BTC",
+            size_type="PCTG",
+            size=0.5,
+            type="LIMIT",
+            param={"price": 62398.1},
+            status=Order.Status.PENDING,
+            id_="1877153720438898689",
+        )
+        exchange.strategy.pending_order = [pending_order]
+        exchange.execute(now=now, order=pending_order)
+        mock_client.create_order.assert_not_called()
+        assert pending_order.status is Order.Status.PENDING
+        assert pending_order.id_ is not None
+        exchange.update_orders(now=now, orders=[pending_order])
+        assert pending_order.status is Order.Status.FILLED
+        assert pending_order not in exchange.strategy.pending_order
+
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_pending2canceled_by_strategy(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.cancel_order.return_value = cancel_order_resp
+        mock_client.fetch_order_status.return_value = "canceled"
+        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+
+        order = Order(
+            action="BUY",
+            ticker="USDT/BTC",
+            size_type="PCTG",
+            size=0.5,
+            type="LIMIT",
+            param={"price": 62398.1},
+            status=Order.Status.PENDING,
+            id_="1877153720438898689",
+        )
+
+        exchange.strategy = MagicMock()
+        exchange.strategy.pending_order = [order]
+        exchange.strategy.order_history = {}
+        order.status = Order.Status.CANCELED
+        now = pd.Timestamp("2024-01-01 00:00:00")
+
+        exchange.execute(now=now, order=order)
+        mock_client.cancel_order.assert_called_once()
+        assert order.status is Order.Status.CANCELED
+        assert order in exchange.strategy.pending_order
+
+        exchange.update_orders(now=now, orders=[order])
+        assert order not in exchange.strategy.pending_order
+        assert order in exchange.strategy.order_history.values()
+
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_pending2canceled_by_me(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.cancel_order.return_value = cancel_order_resp
+        mock_client.fetch_order_status.return_value = "canceled"
+        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+
+        order = Order(
+            action="BUY",
+            ticker="USDT/BTC",
+            size_type="PCTG",
+            size=0.5,
+            type="LIMIT",
+            param={"price": 62398.1},
+            status=Order.Status.PENDING,
+            id_="1877153720438898689",
+        )
+        exchange.strategy = MagicMock()
+        exchange.strategy.pending_order = [order]
+        exchange.strategy.order_history = {}
+
+        now = pd.Timestamp("2024-01-01 00:00:00")
+        exchange.execute(now=now, order=order)
+        mock_client.cancel_order.assert_not_called()
+        assert order.status is Order.Status.PENDING
+        assert order in exchange.strategy.pending_order
+
+        exchange.update_orders(now=now, orders=[order])
+        assert order.status is Order.Status.CANCELED
+        assert order not in exchange.strategy.pending_order
+        assert order in exchange.strategy.order_history.values()
+
+    @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+    def test_new2rejected(self, mock_client):
+        exchange = CCXTExchange()
+        mock_client.create_order.side_effect = ccxt.InsufficientFunds(insufficient_funds_response)
+        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+
+        exchange.strategy = MagicMock()
+        exchange.strategy.account = Account.create({"USDT": 1000})
+        now = pd.Timestamp("2024-01-01 00:00:00")
+        order = Order(
+            action="BUY",
+            ticker="USDT/BTC",
+            size_type="PCTG",
+            size=0.5,
+            type="LIMIT",
+            param={"price": 62398.1},
+            status=Order.Status.NEW,
+        )
+        exchange.strategy.pending_order = [order]
+        exchange.strategy.order_history = {}
+
+        exchange.execute(now=now, order=order)
+        mock_client.create_order.assert_called_once()
+        assert order.id_ is None
+        assert order.status is Order.Status.REJECTED
+
+        exchange.update_orders(now=now, orders=[order])
+        assert order.status is Order.Status.REJECTED
+        assert order not in exchange.strategy.pending_order
+        assert order in exchange.strategy.order_history.values()
+        mock_client.fetch_order_status.assert_not_called()
+
     # def test_create_order_market(self):
     #     exchange = CCXTExchange()
-    #     order = exchange.client.create_order(symbol="BTC/USDT", type="market", side="buy", amount=0.001)
+    #     order = exchange.client.create_order(symbol="BTC/USDT", type="market", side="sell", amount=0.001)
     #     assert order
 
     # def test_create_order_limit(self):
@@ -761,3 +1062,8 @@ class TestCCXTExchange:
     #     exchange = CCXTExchange()
     #     ticker = exchange.client.fetch_ticker("BTC/USDT")
     #     assert ticker
+
+    # def test_cancel_order(self):
+    #     exchange = CCXTExchange()
+    #     order = exchange.client.cancel_order("1877192719882797056", symbol="BTC/USDT")
+    #     assert order

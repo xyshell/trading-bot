@@ -191,9 +191,13 @@ class Transaction(BaseModel):
             self.from_[0] in self.ticker and self.to_[0] in self.ticker
         ), f"Invalid transaction: {self.from_[0]}, {self.to_[0]} not in {self.ticker}"
         if self.tcost[0] == self.from_[0]:
-            assert np.isclose(self.from_[1] - self.tcost[1], util.convert(self.to_, self.ticker, self.prc)[1])
+            assert np.isclose(
+                self.from_[1] - self.tcost[1], util.convert(self.to_, self.ticker, self.prc)[1]
+            ), f"Failed to reconcile {self}"
         elif self.tcost[0] == self.to_[0]:
-            assert np.isclose(self.tcost[1] + self.to_[1], util.convert(self.from_, self.ticker, self.prc)[1])
+            assert np.isclose(
+                self.tcost[1] + self.to_[1], util.convert(self.from_, self.ticker, self.prc)[1]
+            ), f"Failed to reconcile {self}"
         return self
 
     def split(self) -> tuple[Position, Position]:
@@ -241,10 +245,9 @@ class Order(BaseModel):
     type: Type
     param: dict = Field(default_factory=dict)
     status: Status = Status.NEW
-    id_: str = Field(default=None)
+    id_: str | None = Field(default=None)
 
     def model_post_init(self, __context):
-        self.id_ = self.id_ or str(id(self))
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
 
     @property
