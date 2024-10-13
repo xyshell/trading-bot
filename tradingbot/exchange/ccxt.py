@@ -132,6 +132,10 @@ class CCXTExchange(Exchange):
             self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e!r}")
             order.status = Order.Status.REJECTED
             return order
+        except ccxt.errors.InvalidOrder as e:
+            self.strategy.logger.error(f"Order failed: {order}, due to InvalidOrder {e!r}")
+            order.status = Order.Status.REJECTED
+            return order
         except Exception as e:
             self.strategy.logger.error(f"Order failed: {order}, due to {e!r}")
             order.status = Order.Status.REJECTED
