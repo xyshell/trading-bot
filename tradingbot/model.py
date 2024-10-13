@@ -247,6 +247,9 @@ class Order(BaseModel):
     status: Status = Status.NEW
     id_: str | None = Field(default=None)
 
+    def __str__(self):
+        return f"Order(id={self.id_}, {self.action.name}, {self.ticker}, {self.size_type.name}, {self.size}, {self.type.name}, {self.param}, {self.status.name})"
+
     def model_post_init(self, __context):
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
 
