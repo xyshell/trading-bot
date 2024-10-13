@@ -17,10 +17,12 @@ pip install trading_bot.whl
 Note: Optionally install extra dependencies based on your usage.
 
 ```bash
-pip install mplfinance  # for plot
+pip install mplfinance  # for plot(engine="matplotlib")
 pip install yfinance  # for Candlestick(source="yahoo")
 pip install python-binance  # for Candlestick(source="binance")
 pip install ccxt  # for CCXTExchange
+pip install slack_sdk  # for notification.slack
+pip install dask  # for bot.optimize(engine="dask")
 ```
 
 ### For Developers
