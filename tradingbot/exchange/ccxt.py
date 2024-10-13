@@ -125,9 +125,9 @@ class CCXTExchange(Exchange):
             case Order.SizeType.BASE:
                 amount = order.size
         try:
-            order_resp = self.client.create_order(
-                symbol=symbol, type=type_, side=side, amount=amount, price=order.param["price"] if type_ == "limit" else None
-            )
+            price = order.param["price"] if type_ == "limit" else None
+            self.strategy.logger.debug(f"Calling client.create_order({symbol}, {type_}, {side}, {amount}, {price})")
+            order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
             self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e!r}")
             order.status = Order.Status.REJECTED
