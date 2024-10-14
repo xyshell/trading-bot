@@ -174,9 +174,10 @@ class LivePipeline(Pipeline):
                 time.sleep(self._refresh_rate)
 
         except BaseException as e:
-            strategy.logger.info(f"Stopping {strategy!r} due to {e!r}...")
+            strategy.logger.info(f"Stopping {strategy} due to {e!r}...")
             # build report
             Reporter.set(strategy)
             Reporter.display(strategy)
-
             strategy.stop()
+
+            raise

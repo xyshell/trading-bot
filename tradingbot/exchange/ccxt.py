@@ -43,10 +43,13 @@ class CCXTExchange(Exchange):
             if order.id_ is None:
                 continue
             try:
-                status = self.client.fetch_order_status(str(order.id_), symbol=self.get_symbol(order.ticker))
+                order_info = self.client.fetch_order(order.id_, symbol=self.get_symbol(order.ticker))
             except ccxt.errors.OrderNotFound:
                 continue
-            match status:
+            except ccxt.errors.RequestTimeout:
+                self.strategy.logger.warning(f"Order(id={order.id_}) Fetch timeout: {order}. skipped.")
+                continue
+            match order_info["status"]:
                 case "open":
                     self.strategy.logger.debug(f"Order(id={order.id_}) pending: {order}")
                     order.status = Order.Status.PENDING
@@ -54,7 +57,6 @@ class CCXTExchange(Exchange):
                         self.strategy.pending_order.append(order)
                 case "closed":
                     self.strategy.logger.info(f"Order(id={order.id_}) filled: {order}")
-                    order_info = self.client.fetch_order(str(order.id_), symbol=self.get_symbol(order.ticker))
                     order.status = Order.Status.FILLED
                     from_ticker, to_ticker = order.from_ticker, order.to_ticker
                     trans = Transaction(
@@ -129,11 +131,11 @@ class CCXTExchange(Exchange):
             self.strategy.logger.debug(f"Calling client.create_order({symbol}, {type_}, {side}, {amount}, {price})")
             order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
-            self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e!r}")
+            self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e}")
             order.status = Order.Status.REJECTED
             return order
         except ccxt.errors.InvalidOrder as e:
-            self.strategy.logger.error(f"Order failed: {order}, due to InvalidOrder {e!r}")
+            self.strategy.logger.error(f"Order rejected: {order}, due to InvalidOrder {e}")
             order.status = Order.Status.REJECTED
             return order
         except Exception as e:

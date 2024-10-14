@@ -247,6 +247,8 @@ class Order(BaseModel):
     status: Status = Status.NEW
     id_: str | None = Field(default=None)
 
+    model_config = ConfigDict(validate_assignment=True)
+
     def __str__(self):
         return f"Order(id={self.id_}, {self.action.name}, {self.ticker}, {self.size_type.name}, {self.size}, {self.type.name}, {self.param}, {self.status.name})"
 

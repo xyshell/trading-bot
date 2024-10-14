@@ -882,7 +882,7 @@ class TestCCXTExchange:
     def test_new2pending(self, mock_client):
         exchange = CCXTExchange()
         mock_client.create_order.return_value = create_market_order_resp
-        mock_client.fetch_order_status.return_value = "open"
+        mock_client.fetch_order.return_value = fetch_order_unfilled_limit_order_resp
 
         exchange.strategy = MagicMock()
         exchange.strategy.account = Account.create({"USDT": 1000})
@@ -966,8 +966,7 @@ class TestCCXTExchange:
     def test_pending2canceled_by_me(self, mock_client):
         exchange = CCXTExchange()
         mock_client.cancel_order.return_value = cancel_order_resp
-        mock_client.fetch_order_status.return_value = "canceled"
-        mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
+        mock_client.fetch_order.return_value = fetch_order_canceled_limit_order_resp
 
         order = Order(
             action="BUY",
