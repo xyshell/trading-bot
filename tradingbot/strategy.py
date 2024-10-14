@@ -67,8 +67,8 @@ class Strategy(abc.ABC):
         # fmt: off
         fig, axlist = mpf.plot(
             df,
-            mav=kwargs.pop("mav", None),
-            mavcolors=kwargs.pop("mavcolors", None),
+            mav=kwargs.pop("mav", []),
+            mavcolors=kwargs.pop("mavcolors", []),
             type="candle",
             style="charles",
             volume=True,

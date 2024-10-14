@@ -142,7 +142,7 @@ class Bot:
                     pass
             return bot.strategy
 
-        jobs = [dask.delayed(_bot_run)(self, copy.deepcopy(strategy), **kwargs) for strategy in strategy.values()]
+        jobs = [dask.delayed(_bot_run)(self, copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
         results = dask.compute(*jobs, scheduler="processes")
 
         for name, res in zip(strategy.keys(), results):
