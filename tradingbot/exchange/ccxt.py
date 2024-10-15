@@ -47,23 +47,29 @@ class CCXTExchange(Exchange):
             except ccxt.errors.OrderNotFound:
                 continue
             except ccxt.errors.RequestTimeout:
-                self.strategy.logger.warning(f"Order(id={order.id_}) Fetch timeout: {order}. skipped.")
+                self.strategy.logger.warning(f"Order fetch timeout: {order}. skipped.")
                 continue
             match order_info["status"]:
                 case "open":
-                    self.strategy.logger.debug(f"Order(id={order.id_}) pending: {order}")
                     order.status = Order.Status.PENDING
+                    self.strategy.logger.debug(f"Order pending: {order}")
                     if order not in self.strategy.pending_order:
                         self.strategy.pending_order.append(order)
                 case "closed":
-                    self.strategy.logger.info(f"Order(id={order.id_}) filled: {order}")
                     order.status = Order.Status.FILLED
+                    self.strategy.logger.info(f"Order filled: {order}")
                     from_ticker, to_ticker = order.from_ticker, order.to_ticker
+                    from_qty = order_info["cost"] if order_info["side"] == "buy" else order_info["amount"]
+                    to_qty = (
+                        (order_info["amount"] - order_info["fee"]["cost"])
+                        if order_info["side"] == "buy"
+                        else (order_info["cost"] - order_info["fee"]["cost"])
+                    )
                     trans = Transaction(
                         ticker=order.ticker,
                         prc=order.param["price"],
-                        from_=(from_ticker, order_info["cost"]),
-                        to_=(to_ticker, order_info["amount"] - order_info["fee"]["cost"]),
+                        from_=(from_ticker, from_qty),
+                        to_=(to_ticker, to_qty),
                         tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
                         timestamp=pd.Timestamp(order_info["datetime"]),
                     )
@@ -77,8 +83,8 @@ class CCXTExchange(Exchange):
                     if order in self.strategy.pending_order:
                         self.strategy.pending_order.remove(order)
                 case "canceled":
-                    self.strategy.logger.info(f"Order(id={order.id_}) canceled: {order}")
                     order.status = Order.Status.CANCELED
+                    self.strategy.logger.info(f"Order canceled: {order}")
                     self.strategy.order_history[now] = order
                     if order in self.strategy.pending_order:
                         self.strategy.pending_order.remove(order)
@@ -145,5 +151,5 @@ class CCXTExchange(Exchange):
 
         order.id_ = order_resp["id"]
         order.status = Order.Status.PENDING
-        self.strategy.logger.info(f"Order(id={order.id_}) posted: {order}")
+        self.strategy.logger.info(f"Order posted: {order}")
         return order
