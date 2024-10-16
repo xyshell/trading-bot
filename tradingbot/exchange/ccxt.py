@@ -15,7 +15,7 @@ class CCXTExchange(Exchange):
         self._name = name or config.exchange.ccxt.name
         self._param = {**tb.config.exchange.ccxt.model_dump(exclude="name"), **kwargs}
 
-    @functools.cached_property
+    @property
     def client(self):
         import ccxt
 
