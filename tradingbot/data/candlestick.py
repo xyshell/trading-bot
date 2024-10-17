@@ -13,7 +13,7 @@ import tradingbot as tb
 import tradingbot.util as util
 from tradingbot.model import ModeType
 from tradingbot.data.core import Data
-from tradingbot.database import DataBase
+from tradingbot.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,8 @@ class Candlestick(Data):
     def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:
         load_len = kwargs.pop("load_len", self.load_len)
 
-        engine = DataBase.get_engine(tb.config.general.db_url)
-        table = DataBase.get_table_schema(self.__class__, self.table_name)
+        engine = Database.get_engine(tb.config.general.db_url)
+        table = Database.get_data_table(self.__class__, self.table_name)
 
         sql = (
             sa.select(*table.columns)
@@ -115,8 +115,8 @@ class Candlestick(Data):
         return df.sort_values("close_time").tail(load_len).reset_index(drop=True)
 
     def set(self, now: pd.Timestamp, df: pd.DataFrame, **kwargs) -> None:
-        engine = DataBase.get_engine(tb.config.general.db_url)
-        table = DataBase.get_table_schema(self.__class__, self.table_name)
+        engine = Database.get_engine(tb.config.general.db_url)
+        table = Database.get_data_table(self.__class__, self.table_name)
 
         df = df.loc[df["close_time"] <= now].copy()  # only save closed candles
         if df.empty:

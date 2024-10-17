@@ -1,11 +1,16 @@
 import math
 import types
+import logging
+
 import numpy as np
 import pandas as pd
 
 import tradingbot.util as util
 from tradingbot.strategy import Strategy
 from tradingbot.model import Order, Transaction
+
+
+logger = logging.getLogger(__name__)
 
 
 class Reporter:
@@ -183,7 +188,7 @@ class Reporter:
             }
         )
         with pd.option_context("display.max_colwidth", None):
-            print(msg)
+            logger.info(f"\n{msg}")
 
     @classmethod
     def set(cls, strategy: Strategy) -> None:

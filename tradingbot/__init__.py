@@ -7,8 +7,9 @@ from .model import Order, Position, Config
 from .bot import Bot
 from .trigger import schedule
 from .reporter import Reporter
+from .database import Database
 
 config = Config()
 logging.config.dictConfig(config.logging)
 
-__all__ = ["__version__", "Data", "Strategy", "Order", "Position", "Bot", "config", "schedule", "Reporter"]
+__all__ = ["__version__", "Data", "Strategy", "Order", "Position", "Bot", "config", "schedule", "Reporter", "Database"]

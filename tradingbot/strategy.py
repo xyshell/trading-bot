@@ -31,7 +31,9 @@ class Strategy(abc.ABC):
         return f"{self.__class__.__name__}({self.param})"
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}_{"_".join([str(v) for v in self.param.values()])}".replace("/", "")
+        return f"{self.__class__.__name__}_{"_".join([f"{v:.4f}" if isinstance(v, float) else str(v) for v in self.param.values()])}".replace(
+            "/", ""
+        )
 
     def start(self):
         pass
@@ -47,6 +49,7 @@ class Strategy(abc.ABC):
         assert engine == "matplotlib", f"{engine=} not supported"
 
         import mplfinance as mpf
+        import matplotlib.pyplot as plt
 
         data = self.data
         # analyze results
@@ -98,4 +101,5 @@ class Strategy(abc.ABC):
                 _ = ax.tick_params(axis="x", labelsize=5)
                 _ = ax.tick_params(axis="y", labelsize=5)
                 _ = ax.legend(loc="upper left", fontsize=6)
+        plt.show()
         # fmt: on
