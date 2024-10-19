@@ -106,7 +106,7 @@ class FakeSpotExchange(Exchange):
 
         if not account.all_long():
             order.status = Order.Status.REJECTED
-            logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to insufficient capital, positions={self.strategy.positions}")
+            logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to insufficient capital, account={self.strategy.account}")
             return order
 
         self.strategy.account = account
