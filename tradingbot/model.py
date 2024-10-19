@@ -151,6 +151,9 @@ class Account:
             self._position[ticker] = pos
         return self._position[ticker]
 
+    def __iter__(self) -> typing.Iterator[Position]:
+        return iter(self.position)
+
     def __add__(self, pos: Position) -> typing.Self:
         this = self[pos.ticker]
         new_qty = this.qty + pos.qty
