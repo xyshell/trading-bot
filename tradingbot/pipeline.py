@@ -39,6 +39,14 @@ class Pipeline(abc.ABC):
         toc = time.time()
         logger.debug(f"Data Update: took {toc - tic:.2f} seconds")
 
+    @staticmethod
+    def _update_position(strategy: Strategy):
+        # update market price for position
+        for pos in strategy.account.position:
+            for ticker, candle in strategy.data.ticker2candle.items():
+                if pos.ticker in ticker and pos.ticker == util.get_base_ticker(ticker):
+                    pos.market_prc = candle["close"].iloc[-1]
+
 
 class BacktestPipeline(Pipeline):
     @util.validate
@@ -84,6 +92,9 @@ class BacktestPipeline(Pipeline):
                 # update status of pending orders
                 strategy.exchange.update_orders(now, strategy.pending_order)
 
+                # update position
+                self._update_position(strategy)
+
                 # call strategy
                 new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
@@ -93,11 +104,9 @@ class BacktestPipeline(Pipeline):
                     order = strategy.exchange.execute(now, order)
                 strategy.exchange.update_orders(now, orders)
 
-                # update market price for position
-                for pos in strategy.account.position:
-                    for ticker, candle in strategy.data.ticker2candle.items():
-                        if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
-                            pos.market_prc = candle["close"].iloc[-1]
+                # update position after execution
+                self._update_position(strategy)
+
                 # archive position
                 strategy.account_history[now] = copy.deepcopy(strategy.account)
 
@@ -152,6 +161,9 @@ class LivePipeline(Pipeline):
                     # update status of pending orders
                     strategy.exchange.update_orders(now, strategy.pending_order)
 
+                    # update position
+                    self._update_position(strategy)
+
                     # call strategy
                     new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
@@ -161,11 +173,9 @@ class LivePipeline(Pipeline):
                         order = strategy.exchange.execute(now, order)
                     strategy.exchange.update_orders(now, orders)
 
-                    # update market price for position
-                    for pos in strategy.account.position:
-                        for ticker, candle in strategy.data.ticker2candle.items():
-                            if pos.ticker in ticker and pos.ticker != util.get_quote_ticker(ticker):
-                                pos.market_prc = candle["close"].iloc[-1]
+                    # update position after execution
+                    self._update_position(strategy)
+
                     # archive position
                     strategy.account_history[now] = copy.deepcopy(strategy.account)
 
