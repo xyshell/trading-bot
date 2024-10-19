@@ -271,3 +271,8 @@ class Order(BaseModel):
             return util.get_base_ticker(self.ticker)
         elif self.action is Order.Action.SELL:
             return util.get_quote_ticker(self.ticker)
+
+    def cancel(self, exchange) -> typing.Self:
+        self.status = Order.Status.CANCELED
+        self = exchange.execute(now=pd.NaT, order=self)
+        return self
