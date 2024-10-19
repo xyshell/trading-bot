@@ -181,7 +181,7 @@ class TestBacktest:
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=40)}
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
         bot.account = {"USDT": 1000}
-        bot.optimize({f"SMACross_{p1}": _SMACross(slow=p1) for p1 in [25, 30, 35]}, plot=False)
+        bot.optimize({f"SMACross_{p1}": _SMACross(slow=p1) for p1 in [25, 30, 35]}, plot=False, persist=False)
 
         for strat in bot.strategy.values():
             assert util.hash_pd(strat.report["stats"].drop("strategy")) == snapshot

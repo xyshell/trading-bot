@@ -6,7 +6,6 @@ import logging
 import uuid
 import warnings
 
-import dask.diagnostics
 import pandas as pd
 import sqlalchemy as sa
 
@@ -127,6 +126,7 @@ class Bot:
         engine: str = "dask",
         errors: str = "warn",
         num_workers: int = os.cpu_count(),
+        persist: bool = True,
         if_exists: str = "ignore",
         **kwargs,
     ) -> None:
@@ -136,14 +136,16 @@ class Bot:
             engine (str, optional): "dask". Defaults to "dask".
             errors (str, optional): "ignore", "warn" or "raise"
             num_workers (int, optional): number of workers. Defaults to os.cpu_count().
-            if_exists (str, optional): what to do if the key already exists in opt result table.
+            persist (bool, optional): persist results to database. Defaults to True.
+            if_exists (str, optional): only when persist is True, what to do if the key already exists in opt result table.
                 "ignore", "replace" or "raise". Defaults to "ignore".
             **kwargs: passed to bot.run(**kwargs)
         """
         assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
         import dask
+        import dask.diagnostics
 
-        def _bot_run(bot, strategy, **kwargs) -> Strategy:
+        def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
             key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
             engine = Database.get_engine()
             table = Database.get_opt_table()
@@ -191,7 +193,31 @@ class Bot:
             finally:
                 return bot.strategy
 
-        jobs = [dask.delayed(_bot_run)(copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
+        def _bot_run(bot, strategy, **kwargs) -> Strategy:
+            bot.strategy = strategy
+            for trigger in bot.strategy.next.trigger:
+                trigger.checked.clear()
+            try:
+                logger.info(f"Optimizing: {strategy}")
+                with util.set_level(logging.getLogger("tradingbot"), logging.WARNING):
+                    bot.run(**kwargs)
+            except AssertionError as exc:
+                logger.info(f"{strategy} bypassed due to {exc!r}")
+            except Exception as exc:
+                if errors == "warn":
+                    msg = traceback.format_exc()
+                    warnings.warn(f"{strategy} failed, due to {exc!r}\n{msg}")
+                elif errors == "raise":
+                    raise
+                else:  # ignore
+                    pass
+            else:
+                logger.info(f"Done: {strategy}")
+            finally:
+                return bot.strategy
+
+        func = _bot_run_persist if persist else _bot_run
+        jobs = [dask.delayed(func)(copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
         with dask.diagnostics.ProgressBar():
             results = dask.compute(*jobs, scheduler="processes", num_workers=num_workers)
 
