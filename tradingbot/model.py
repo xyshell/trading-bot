@@ -103,7 +103,7 @@ class Position(BaseModel):
     ticker: str  # e.g. BTC, USDT
     qty: float  # quantity, with sign indicates long/short
     entry_prc: float = 0.0  # entry price, i.e. historical average cost price
-    market_prc: float = np.nan  # market price
+    market_prc: float = 1.0  # market price
 
     @computed_field
     def pnl(self) -> float:  # profit and loss
