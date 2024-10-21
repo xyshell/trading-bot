@@ -20,3 +20,24 @@
 # name: TestBinanceCandlestick.test_load_sharp.1
   '3d896d3fb48a0d7762c7480b75ee4ebeb1479c1d475e5625e3acf8abcf733c6a'
 # ---
+# name: TestOkxCandlestick.test_get_history
+  '630039603f1748323fd87585d61f875f508f16acff1fd7fbd56aae3fdab91970'
+# ---
+# name: TestOkxCandlestick.test_get_history.1
+  '630039603f1748323fd87585d61f875f508f16acff1fd7fbd56aae3fdab91970'
+# ---
+# name: TestOkxCandlestick.test_load_between
+  'a211b25ef2f44d886c596a529109b0c3fc0321f17795761b39950abc0f284ed1'
+# ---
+# name: TestOkxCandlestick.test_load_between.1
+  '70da24dfd5011de56551dc383789fd781e2b223963f31c92c566ec8869e19771'
+# ---
+# name: TestOkxCandlestick.test_load_between.2
+  'c10de011e963f64e071e894a86eacd30dea07a06cd9b9fab4bf19b339de6d94e'
+# ---
+# name: TestOkxCandlestick.test_load_sharp
+  'cd1795c43ec878129404e5daff8a59cbccfcc17dde6ea72a36e1555ad2ac6696'
+# ---
+# name: TestOkxCandlestick.test_load_sharp.1
+  '430d823add2768dca993faada4728c698eef2e1749e7d5610dec58a849794a24'
+# ---

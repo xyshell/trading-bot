@@ -208,7 +208,7 @@ class BinanceCandlestick(Candlestick):
         self._http_proxy = http_proxy or config.general.http_proxy
         self._https_proxy = https_proxy or config.general.https_proxy
 
-    @functools.cached_property
+    @property
     def _client(self):
         from binance import Client
 
@@ -262,4 +262,90 @@ class BinanceCandlestick(Candlestick):
         df = df.sort_values(["ticker", "open_time"], ignore_index=True)
         if self.closed_only or self.mode == "backtest":
             df = df.loc[df["close_time"] <= now]
+        return df.tail(self.load_len).reset_index(drop=True)
+
+
+class OkxCandlestick(Candlestick):
+    """Okx candlestick data"""
+
+    source = "okx"
+
+    def __init__(self, *_, ticker: str, freq: str, http_proxy: str = None, https_proxy: str = None, **kwargs):
+        super().__init__(ticker=ticker, freq=freq, **kwargs)
+        config = tb.config
+        self._http_proxy = http_proxy or config.general.http_proxy
+        self._https_proxy = https_proxy or config.general.https_proxy
+
+    @property
+    def _client(self):
+        import ccxt
+
+        class OkxClient(ccxt.okx):
+            def parse_ohlcv(self, ohlcv, market = None) -> list:
+                #
+                #     [
+                #         "1678928760000",  # timestamp
+                #         "24341.4",  # open
+                #         "24344",  # high
+                #         "24313.2",  # low
+                #         "24323",  # close
+                #         "628",  # contract volume
+                #         "2.5819",  # base volume
+                #         "62800",  # quote volume
+                #         "0"  # candlestick state
+                #     ]
+                #
+                res = self.handle_market_type_and_params('fetchOHLCV', market, None)
+                type = res[0]
+                volumeIndex = 5 if (type == 'spot') else 6
+                return [
+                    self.safe_integer(ohlcv, 0),
+                    self.safe_number(ohlcv, 1),
+                    self.safe_number(ohlcv, 2),
+                    self.safe_number(ohlcv, 3),
+                    self.safe_number(ohlcv, 4),
+                    self.safe_number(ohlcv, volumeIndex),  # base volume
+                    self.safe_number(ohlcv, 7),  # quote volume
+                    self.safe_integer(ohlcv, 8),  # is closed
+                ]
+
+        param = {"proxies": {"http": self._http_proxy, "https": self._https_proxy}}
+        return OkxClient(param)
+    
+    def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:
+        start = now - pd.Timedelta(self.freq) * (self.load_len + 1)
+        start_ts = int(start.timestamp() * 1000)
+        end_ts = int(now.timestamp() * 1000)
+
+        symbol = "/".join(self.ticker.split("/")[::-1])
+        since = start_ts
+        candlestick = []
+        while True:
+            ohlcv = self._client.fetch_ohlcv(symbol, self.freq, since=since)
+            candlestick.extend(ohlcv)
+            if candlestick[-1][0] >= end_ts or not ohlcv:
+                break
+            since = candlestick[-1][0] + 1000
+
+        df = pd.DataFrame(
+            candlestick,
+            columns=[
+                "open_time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "base_volume",
+                "quote_volume",
+                "is_closed",
+            ],
+        )
+        df["open_time"] = pd.to_datetime(df["open_time"] // 1000, unit="s")
+        df["close_time"] = pd.to_datetime(df["open_time"] + pd.Timedelta(self.freq), unit="s") - pd.Timedelta(1, unit="s")
+        df["ticker"] = self.ticker
+        df = df.sort_values(["ticker", "open_time"], ignore_index=True)
+        if self.closed_only or self.mode == "backtest":
+            df = df.loc[df["is_closed"] == 1]
+            df = df.loc[df["close_time"] <= now]
+        df.drop(columns="is_closed", inplace=True)
         return df.tail(self.load_len).reset_index(drop=True)

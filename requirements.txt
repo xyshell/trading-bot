@@ -1,7 +1,7 @@
 pydantic==2.9.2
 pydantic-settings==2.2.1
 numpy==2.1.2
-pandas==2.2.2
+pandas==2.2.3
 SQLAlchemy==2.0.35
 retry==0.9.2
 psutil==6.0.0
@@ -20,7 +20,7 @@ slack_sdk  # optional
 mplfinance==0.12.10b0  # optional
 
 # parallel computing
-dask==2024.9.1
+dask[complete]==2024.10.0
 
 # dev only
 pytest==8.3.3
