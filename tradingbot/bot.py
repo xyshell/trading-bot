@@ -125,9 +125,10 @@ class Bot:
         strategy: dict[str, Strategy],
         engine: str = "dask",
         errors: str = "warn",
-        num_workers: int = os.cpu_count(),
         persist: bool = True,
         if_exists: str = "ignore",
+        n_workers: int = os.cpu_count(),
+        scheduler_url: str | None = None,
         **kwargs,
     ) -> None:
         """optimize multiple strategies
@@ -135,16 +136,21 @@ class Bot:
             strategy (dict[str, Strategy]): strategies to optimize
             engine (str, optional): "dask". Defaults to "dask".
             errors (str, optional): "ignore", "warn" or "raise"
-            num_workers (int, optional): number of workers. Defaults to os.cpu_count().
             persist (bool, optional): persist results to database. Defaults to True.
             if_exists (str, optional): only when persist is True, what to do if the key already exists in opt result table.
                 "ignore", "replace" or "raise". Defaults to "ignore".
+            scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
+            n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
             **kwargs: passed to bot.run(**kwargs)
         """
         assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
-        import dask
-        import dask.diagnostics
+        from dask.distributed import Client, LocalCluster
+        from tradingbot import config
 
+        scheduler_url = scheduler_url or config.general.dask_scheduler_url
+        client = Client(scheduler_url) if scheduler_url else Client(LocalCluster(n_workers=n_workers))
+        client.forward_logging(logger_name="tradingbot", level="DEBUG")
+        
         def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
             key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
             engine = Database.get_engine()
@@ -217,11 +223,11 @@ class Bot:
                 return bot.strategy
 
         func = _bot_run_persist if persist else _bot_run
-        jobs = [dask.delayed(func)(copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
-        with dask.diagnostics.ProgressBar():
-            results = dask.compute(*jobs, scheduler="processes", num_workers=num_workers)
+        futures = [client.submit(func, copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
+        results = client.gather(futures)
 
         for name, res in zip(strategy.keys(), results):
             strategy[name] = res
 
         self.strategy = strategy
+        client.close()
