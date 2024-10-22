@@ -35,6 +35,7 @@ class Config(BaseSettings):
         db_url: str = Field(default=f"sqlite:///{Path(__file__).parent / 'tradingbot.db'}")
         http_proxy: str | None = Field(default=None)
         https_proxy: str | None = Field(default=None)
+        dask_scheduler_url: str | None = Field(default=None)
 
     class _SourceConfig(BaseModel):
         model_config = ConfigDict(extra="allow")
@@ -92,9 +93,19 @@ class Config(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        if toml_file := cls.model_config.get("toml_file"):
-            print(f"Loading config.toml from '{toml_file}'")
-        return (env_settings, dotenv_settings, TomlConfigSettingsSource(settings_cls))
+        
+        search_path = [
+            Path.cwd() / "config.toml",  # current directory
+            Path.cwd().parent / "config.toml",  # parent directory
+        ]
+        toml_file = cls.model_config.get("toml_file")  # default
+        for path in search_path:
+            if path.exists():
+                toml_file = path
+                break
+
+        print(f"Loading config.toml from '{toml_file}'")
+        return (env_settings, dotenv_settings, TomlConfigSettingsSource(settings_cls, toml_file))
 
 
 class Position(BaseModel):
