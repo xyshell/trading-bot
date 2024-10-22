@@ -76,7 +76,7 @@ class CCXTExchange(Exchange):
                     account = copy.deepcopy(self.strategy.account)
                     account += to_pos
                     account -= from_pos
-                    self.account = account
+                    self.strategy.account = account
                     self.strategy.transaction_history.append(trans)
                     self.strategy.order_history[pd.Timestamp(order_info["datetime"])] = order
                     if order in self.strategy.pending_order:

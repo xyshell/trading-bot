@@ -149,7 +149,7 @@ class Bot:
 
         scheduler_url = scheduler_url or config.general.dask_scheduler_url
         client = Client(scheduler_url) if scheduler_url else Client(LocalCluster(n_workers=n_workers))
-        client.forward_logging(logger_name="tradingbot", level="DEBUG")
+        client.forward_logging("tradingbot")
         
         def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
             key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
