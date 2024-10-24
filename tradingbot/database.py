@@ -17,8 +17,9 @@ class Database:
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def get_data_table(kls: typing.Type[Data], name: str) -> sa.Table:
-        engine = Database.get_engine(tb.config.general.db_url)
+    def get_data_table(kls: typing.Type[Data], name: str, **kwargs) -> sa.Table:
+        url = kwargs.pop("url", tb.config.general.db_url)
+        engine = Database.get_engine(url, **kwargs)
         metadata = sa.MetaData()
 
         columns = []
@@ -40,8 +41,9 @@ class Database:
         return table
 
     @staticmethod
-    def get_opt_table() -> sa.Table:
-        engine = Database.get_engine(tb.config.general.db_url)
+    def get_opt_table(**kwargs) -> sa.Table:
+        url = kwargs.pop("url", tb.config.general.db_url)
+        engine = Database.get_engine(url, **kwargs)
         metadata = sa.MetaData()
 
         table = sa.Table(
