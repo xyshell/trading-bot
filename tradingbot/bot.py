@@ -130,6 +130,7 @@ class Bot:
         remote: bool = False,
         n_workers: int = os.cpu_count(),
         scheduler_url: str | None = None,
+        memory_saving: str | None = None,
         **kwargs,
     ) -> None:
         """optimize multiple strategies
@@ -143,9 +144,13 @@ class Bot:
             remote (bool, optional): if True, run on remote cluster. Defaults to False.
             scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
             n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
+            memory_saving (str, optional): memory clearing plan, defautls to None.
+                "moderate": Clearing Data
+                "aggressive": Aggressively Clearing Data
             **kwargs: passed to bot.run(**kwargs)
         """
         assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
+        assert memory_saving in {None, "moderate", "aggressive"}, f"{memory_saving=} not supported"
         from dask.distributed import Client, LocalCluster
         from tradingbot import config
 
@@ -156,7 +161,6 @@ class Bot:
             client = Client(scheduler_url)
             client.restart()
         client.forward_logging("tradingbot")
-        n_job = len(strategy)
 
         def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
             key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
@@ -204,7 +208,14 @@ class Bot:
 
                 logger.info(f"Done: {key=}")
             finally:
-                return bot.strategy if n_job < 1_000 else None
+                if memory_saving is None:
+                    return bot.strategy
+                elif memory_saving == "moderate":
+                    return None
+                elif memory_saving == "aggressive":
+                    del strategy
+                    del bot
+                    return None
 
         def _bot_run(bot, strategy, **kwargs) -> Strategy:
             bot.strategy = strategy
@@ -227,7 +238,14 @@ class Bot:
             else:
                 logger.info(f"Done: {strategy}")
             finally:
-                return bot.strategy if n_job < 1_000 else None
+                if memory_saving is None:
+                    return bot.strategy
+                elif memory_saving == "moderate":
+                    return None
+                elif memory_saving == "aggressive":
+                    del strategy
+                    del bot
+                    return None
 
         func = _bot_run_persist if persist else _bot_run
         futures = [client.submit(func, copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
