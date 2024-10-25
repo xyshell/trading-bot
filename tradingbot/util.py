@@ -1,6 +1,7 @@
 import contextlib
 import hashlib
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import pathlib
 import types
 import functools
@@ -142,3 +143,12 @@ def get_strategy_logger(name: str) -> logging.Logger:
         slack_handler.setLevel(logging.INFO)
         logger.addHandler(slack_handler)
     return logger
+
+
+class CustomTimedRotatingFileHandler(TimedRotatingFileHandler):
+
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except PermissionError:
+            pass  # ignore "The process cannot access the file because it is being used by another process"
