@@ -145,6 +145,8 @@ class Reporter:
         # trade
         trade_num = len(_trade_report)
         win_rate = (_trade_report["pnl_abs"] > 0).sum() / trade_num
+        best_trade = _trade_report['pnl_pct'].max()
+        worst_trade = _trade_report['pnl_pct'].min()
         avg_win_pnl_pct = _trade_report.loc[_trade_report["pnl_abs"] > 0, "pnl_pct"].mean()
         avg_lose_pnl_pct = _trade_report.loc[_trade_report["pnl_abs"] < 0, "pnl_pct"].mean()
         avg_duration = _trade_report["duration"].mean()
@@ -180,6 +182,8 @@ class Reporter:
                 "IR": f"{stats_report['ir']:.2f}",
                 "Trade #": f"{stats_report['trade_num']}",
                 "Win Rate": f"{stats_report['win_rate']:.2%}",
+                "Best Trade": f"{stats_report['best_trade']:.2%}",
+                "Worst Trade": f"{stats_report['worst_trade']:.2%}",
                 "Avg Win vs Lost Pct": f"{stats_report['avg_win_pnl_pct']:.2%} vs {stats_report['avg_lose_pnl_pct']:.2%}",
                 "Avg Trade Duration": stats_report["avg_duration"],
                 "Profit Factor": f"{stats_report['profit_factor']:.2f}",
