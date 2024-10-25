@@ -69,10 +69,10 @@ class Config(BaseSettings):
         version: int = 1
         disable_existing_loggers: bool = False
 
-        formatters: dict[str, dict[str, str]]
-        handlers: dict[str, dict[str, str]]
-        loggers: dict[str, dict[str, str | typing.Sequence[str] | bool]]
-        root: dict[str, str | typing.Sequence[str]]
+        formatters: dict[str, dict[str, typing.Any]]
+        handlers: dict[str, dict[str, typing.Any]]
+        loggers: dict[str, dict[str, typing.Any]]
+        root: dict[str, typing.Any]
 
     general: _GeneralConfig
     source: _SourceConfig

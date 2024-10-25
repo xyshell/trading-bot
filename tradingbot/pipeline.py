@@ -4,6 +4,7 @@ import time
 import concurrent.futures
 import logging
 import os
+import traceback
 from typing import Callable
 import psutil
 
@@ -189,5 +190,7 @@ class LivePipeline(Pipeline):
             Reporter.set(strategy)
             Reporter.display(strategy)
             strategy.stop()
-
+            if isinstance(e, Exception):
+                msg = traceback.format_exc()
+                strategy.logger.error(msg)
             raise
