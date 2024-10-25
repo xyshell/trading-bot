@@ -127,6 +127,7 @@ class Bot:
         errors: str = "warn",
         persist: bool = True,
         if_exists: str = "ignore",
+        remote: bool = False,
         n_workers: int = os.cpu_count(),
         scheduler_url: str | None = None,
         **kwargs,
@@ -139,6 +140,7 @@ class Bot:
             persist (bool, optional): persist results to database. Defaults to True.
             if_exists (str, optional): only when persist is True, what to do if the key already exists in opt result table.
                 "ignore", "replace" or "raise". Defaults to "ignore".
+            remote (bool, optional): if True, run on remote cluster. Defaults to False.
             scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
             n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
             **kwargs: passed to bot.run(**kwargs)
@@ -148,9 +150,14 @@ class Bot:
         from tradingbot import config
 
         scheduler_url = scheduler_url or config.general.dask_scheduler_url
-        client = Client(scheduler_url) if scheduler_url else Client(LocalCluster(n_workers=n_workers))
+        if not remote or not scheduler_url:
+            client = Client(LocalCluster(n_workers=n_workers))
+        else:
+            client = Client(scheduler_url)
+            client.restart()
         client.forward_logging("tradingbot")
-        
+        n_job = len(strategy)
+
         def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
             key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
             engine = Database.get_engine()
@@ -197,7 +204,7 @@ class Bot:
 
                 logger.info(f"Done: {key=}")
             finally:
-                return bot.strategy
+                return bot.strategy if n_job < 1_000 else None
 
         def _bot_run(bot, strategy, **kwargs) -> Strategy:
             bot.strategy = strategy
@@ -220,7 +227,7 @@ class Bot:
             else:
                 logger.info(f"Done: {strategy}")
             finally:
-                return bot.strategy
+                return bot.strategy if n_job < 1_000 else None
 
         func = _bot_run_persist if persist else _bot_run
         futures = [client.submit(func, copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
@@ -230,4 +237,6 @@ class Bot:
             strategy[name] = res
 
         self.strategy = strategy
+        if client.cluster is not None:
+            client.cluster.close()
         client.close()
