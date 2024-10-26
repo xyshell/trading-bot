@@ -56,7 +56,11 @@ class Strategy(abc.ABC):
         port_report = self.report["portfolio"]
         order_report = self.report["order"].query("status == 'FILLED'")
         sample_freq = util.inferred_freq2freq(port_report.index.inferred_freq)
-        candlestick = next(da for da in data.values() if isinstance(da, Candlestick) and da.freq == sample_freq)
+        candlestick_highest = min(data.values(), key=lambda da: pd.Timedelta(da.freq))
+        if pd.Timedelta(candlestick_highest.freq) > pd.Timedelta(sample_freq):
+            candlestick = Candlestick(candlestick_highest.source, ticker=candlestick_highest.ticker, freq=sample_freq)
+        else:
+            candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
         buy_sell = order_report["action"].to_frame()
