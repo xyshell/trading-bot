@@ -1,12 +1,12 @@
 # serializer version: 1
 # name: TestBacktest.test_btcusdt
-  '7945b459b9359ce25085af58962bbc2edd22e0dc6b13dcc40e3295385183f106'
+  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
 # name: TestBacktest.test_btcusdt.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
 # name: TestBacktest.test_closed_only
-  '7945b459b9359ce25085af58962bbc2edd22e0dc6b13dcc40e3295385183f106'
+  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
 # name: TestBacktest.test_closed_only.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
@@ -24,17 +24,17 @@
   '57628918aa341821f4b203e1ebc25997c1ce2e21d3cdc79a320abe326a3947e9'
 # ---
 # name: TestBacktest.test_msft
-  '489cff03da4e238cd18e45781eadae65f7437b284d81b7eb50f772ce230a95e7'
+  'a833e74e1e47d2919a8efef2cab710b9030a901b22819028e3a24d1dbd0b8bf1'
 # ---
 # name: TestBacktest.test_msft.1
   '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
 # ---
 # name: TestBacktest.test_optimize
-  '3f647f4a7497f81915136d138d9eb22d32686b74c136f29a5f4798d7205be5d8'
+  'e7909ba321a8a12c884345a0b9fe0d0b5095d9ff552ef2f067c8f786984d3100'
 # ---
 # name: TestBacktest.test_optimize.1
-  '7945b459b9359ce25085af58962bbc2edd22e0dc6b13dcc40e3295385183f106'
+  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
 # name: TestBacktest.test_optimize.2
-  '87fbfb1d2c40ca1ac8a0a8429aa774cee241b84f02e57332258fbf75500e45a2'
+  'db96ff54fa80a09191fb8c5e067eed6f09ce9a29f60f62b22b7659ffa0ab5ad2'
 # ---

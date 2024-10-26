@@ -106,6 +106,7 @@ class Reporter:
         exposure_time = _is_exposed.sum() / len(_is_exposed)
         ptf_ret = _ptf_report.nav.iloc[-1] / _ptf_report.nav.iloc[0] - 1
         ptf_ret_peak = _ptf_report.nav.max() / _ptf_report.nav.iloc[0] - 1
+        ptf_ret_trough = _ptf_report.nav.min() / _ptf_report.nav.iloc[0] - 1
         ptf_ret_ann = (1 + ptf_ret) ** _n - 1
         ptf_vol_ann = _ptf_hist_ret.std() * _N**0.5
         # benchmark
