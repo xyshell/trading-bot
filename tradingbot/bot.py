@@ -9,6 +9,7 @@ import warnings
 import pandas as pd
 import sqlalchemy as sa
 
+from tradingbot.exchange.fake import FakeExchange
 import tradingbot.util as util
 from tradingbot.model import Account, ModeType, DatetimeType
 from tradingbot.pipeline import BacktestPipeline, LivePipeline
@@ -117,6 +118,9 @@ class Bot:
         strategy.account = self._account
         # set exchange
         self._exchange.strategy = strategy
+
+        if self.mode == "backtest":
+            assert isinstance(strategy.exchange, FakeExchange), "Can't use real exchange in backtest mode"
         # run pipeline
         self._pipeline.run(strategy, plot=plot, **kwargs)
 

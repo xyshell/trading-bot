@@ -10,7 +10,10 @@ from tradingbot.exchange.core import Exchange
 logger = logging.getLogger(__name__)
 
 
-class FakeSpotExchange(Exchange):
+class FakeExchange(Exchange):
+    pass
+
+class FakeSpotExchange(FakeExchange):
     """Fake spot exchange used for backtest and paper trading"""
 
     @util.validate
