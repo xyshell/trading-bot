@@ -50,7 +50,7 @@ class StandardInterval(Trigger):
         if not self.checked:
             self.checked.append(now)
             return now.ceil(self.interval) == now
-        next_check = self.checked[-1].ceil(self.interval)
+        next_check = (self.checked[-1] + pd.Timedelta('1s')).ceil(self.interval)
         if next_check <= now:
             self.checked.append(now)
             return True
