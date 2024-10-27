@@ -52,6 +52,12 @@ class Pipeline(abc.ABC):
 class BacktestPipeline(Pipeline):
     @util.validate
     def __init__(self, now_factory: Callable[[], pd.Timestamp], start: pd.Timestamp, end: pd.Timestamp, **kwargs):
+        """
+        Args:
+            now_factory (Callable): function to get current time
+            start (str | datetime.datetime | pd.Timestamp): start time
+            end (str | datetime.datetime | pd.Timestamp): end time
+        """
         super().__init__(now_factory)
         self._start = start
         self._end = min(end, now_factory())
@@ -66,10 +72,32 @@ class BacktestPipeline(Pipeline):
 
         return now_generator
 
-    def run(self, strategy: Strategy, plot: bool | dict = False, **kwargs):
+    def run(self, strategy: Strategy, plot: bool | dict = False, preload: bool = False, **kwargs):
+        """
+        Args:
+            plot (bool | dict, optional): whether to plot and plot kwargs
+            preload (bool, optional): whether to preload data to speed up
+        """
         start_tic = time.time()
         strategy.logger = logger
         strategy.start()
+
+        if preload:
+            for da in strategy.data.values():
+                da.preload = True
+
+            def preload_helper(data: Data):
+                pre_history = data.load(self._start)
+                history = data.load(self._end, since=self._start)
+                data.cached = pd.concat([pre_history, history], ignore_index=True)
+
+            tic = time.time()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = {executor.submit(preload_helper, da): da for da in strategy.data.values()}
+                for future in concurrent.futures.as_completed(futures):
+                    future.result()
+            toc = time.time()
+            logger.info(f"Data Preload: took {toc - tic:.2f} seconds")
 
         now_generator = self._get_now_generator(strategy.next.trigger)
         for now in now_generator():

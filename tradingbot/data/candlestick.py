@@ -97,6 +97,7 @@ class Candlestick(Data):
 
     def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:
         load_len = kwargs.pop("load_len", self.load_len)
+        since = kwargs.pop("since", None)
 
         engine = Database.get_engine(tb.config.general.db_url)
         table = Database.get_data_table(self.__class__, self.table_name)
@@ -106,12 +107,15 @@ class Candlestick(Data):
             .where(table.c.ticker == self.ticker)
             .where(table.c.close_time <= now.to_pydatetime())
             .order_by(table.c.close_time.desc())
-            .limit(load_len)
         )
-        if self.closed_only:
-            sql = sql.where(table.c.close_time <= now.to_pydatetime())
-        df = pd.read_sql(sql, con=engine)
-        return df.sort_values("close_time").tail(load_len).reset_index(drop=True)
+        if since is not None:
+            sql = sql.where(table.c.close_time >= pd.Timestamp(since).to_pydatetime())
+        else:
+            sql = sql.limit(load_len)
+        df = pd.read_sql(sql, con=engine).sort_values("close_time")
+        if since is None:
+            df = df.tail(load_len)
+        return df.reset_index(drop=True)
 
     def set(self, now: pd.Timestamp, df: pd.DataFrame, **kwargs) -> None:
         engine = Database.get_engine(tb.config.general.db_url)

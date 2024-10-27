@@ -30,15 +30,17 @@ class Bot:
         end: DatetimeType | None = None,
         refresh_rate: float = 0.0,
         now_factory: Callable[[], pd.Timestamp] = util.utc_now_factory,
+        preload: bool = False,
         **kwargs,
     ):
         """
         Args:
-            mode (str): "backtest", or "live"
+            mode (str): "backtest" or "live"
             start (str | datetime.datetime | pd.Timestamp, optional): start time. backtest mode only
             end (str | datetime.datetime | pd.Timestamp, optional): end time. backtest mode only
             refresh_rate (float, optional): refresh rate in seconds. live mode only
             now_factory (Callable, optional): function to get current time. Defaults to pd.Timestamp.utcnow().tz_localize(None).
+            preload (bool, optional): when backtest, whether to preload data to speed up 
         """
         self._mode = mode
         self._pipeline = (
@@ -49,6 +51,7 @@ class Bot:
         self._start = start
         self._end = end
         self._now_factory = now_factory
+        self._preload = preload
 
         self._data: dict[str, Data] = {}
         self._strategy: Strategy = None
@@ -122,7 +125,7 @@ class Bot:
         if self.mode == "backtest":
             assert isinstance(strategy.exchange, FakeExchange), "Can't use real exchange in backtest mode"
         # run pipeline
-        self._pipeline.run(strategy, plot=plot, **kwargs)
+        self._pipeline.run(strategy, plot=plot, preload=self._preload, **kwargs)
 
     def optimize(
         self,
