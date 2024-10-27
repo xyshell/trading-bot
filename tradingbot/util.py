@@ -3,6 +3,7 @@ import hashlib
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import pathlib
+import time
 import types
 import functools
 import sqlalchemy as sa
@@ -152,3 +153,14 @@ class CustomTimedRotatingFileHandler(TimedRotatingFileHandler):
             super().doRollover()
         except PermissionError:
             pass  # ignore "The process cannot access the file because it is being used by another process"
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        tic = time.time()  # Start time
+        result = func(*args, **kwargs)  # Execute the function
+        toc = time.time()  # End time
+        print(f"{func.__name__} took {(toc-tic):.2f} seconds.")
+        return result
+    return wrapper

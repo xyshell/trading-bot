@@ -1,3 +1,4 @@
+import importlib
 import logging
 import warnings
 
@@ -6,7 +7,6 @@ from retry import retry
 from typing_extensions import Annotated
 import pandas as pd
 import sqlalchemy as sa
-from sqlalchemy.dialects.sqlite import insert
 
 import tradingbot as tb
 import tradingbot.util as util
@@ -129,6 +129,8 @@ class Candlestick(Data):
             if "open_time" in df.columns:
                 df["open_time"] = df["open_time"].dt.to_pydatetime()
 
+        sqlalchemy_dialect = importlib.import_module(f"sqlalchemy.dialects.{engine.dialect.name}")
+        insert = sqlalchemy_dialect.insert
         insert_stmt = insert(table).values(df.to_dict(orient="records"))
         upsert_stmt = insert_stmt.on_conflict_do_update(
             index_elements=[table.c.ticker, table.c.close_time],

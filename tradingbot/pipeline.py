@@ -67,6 +67,7 @@ class BacktestPipeline(Pipeline):
         return now_generator
 
     def run(self, strategy: Strategy, plot: bool | dict = False, **kwargs):
+        start_tic = time.time()
         strategy.logger = logger
         strategy.start()
 
@@ -119,6 +120,8 @@ class BacktestPipeline(Pipeline):
         Reporter.display(strategy)
 
         strategy.stop()
+        end_tic = time.time()
+        print(f"BacktestPipeline.run took {(end_tic - start_tic):.2f} seconds.")
 
         if plot:
             plot_kwargs = {} if isinstance(plot, bool) else plot
