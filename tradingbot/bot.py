@@ -132,9 +132,9 @@ class Bot:
         persist: bool = True,
         if_exists: str = "ignore",
         remote: bool = False,
+        restart: bool = False,
         n_workers: int = os.cpu_count(),
         scheduler_url: str | None = None,
-        memory_saving: str | None = None,
         **kwargs,
     ) -> None:
         """optimize multiple strategies
@@ -142,20 +142,17 @@ class Bot:
             strategy (dict[str, Strategy]): strategies to optimize
             engine (str, optional): "dask". Defaults to "dask".
             errors (str, optional): "ignore", "warn" or "raise"
-            persist (bool, optional): persist results to database. Defaults to True.
+            persist (bool, optional): persist results to database. Defaults to True. if True, results are not returned.
             if_exists (str, optional): only when persist is True, what to do if the key already exists in opt result table.
                 "ignore", "replace" or "raise". Defaults to "ignore".
             remote (bool, optional): if True, run on remote cluster. Defaults to False.
+            restart (bool, optional): if True, restart cluster. Defaults to False.
             scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
             n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
-            memory_saving (str, optional): memory clearing plan, defautls to None.
-                "moderate": Clearing Data
-                "aggressive": Aggressively Clearing Data
             **kwargs: passed to bot.run(**kwargs)
         """
         assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
-        assert memory_saving in {None, "moderate", "aggressive"}, f"{memory_saving=} not supported"
-        from dask.distributed import Client, LocalCluster
+        from dask.distributed import Client, LocalCluster, fire_and_forget, wait
         from tradingbot import config
 
         scheduler_url = scheduler_url or config.general.dask_scheduler_url
@@ -163,11 +160,12 @@ class Bot:
             client = Client(LocalCluster(n_workers=n_workers))
         else:
             client = Client(scheduler_url)
-            client.restart()
+            if restart:
+                client.restart()
         client.forward_logging("tradingbot")
 
-        def _bot_run_persist(bot, strategy, **kwargs) -> Strategy:
-            key = f"{strategy}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
+        def _bot_run_persist(bot, strat, **kwargs) -> Strategy:
+            key = f"{strat}_{bot._start:%Y%m%d}_{bot._end:%Y%m%d}"
             engine = Database.get_engine()
             table = Database.get_opt_table()
             if if_exists in {"ignore", "raise"}:
@@ -179,7 +177,7 @@ class Bot:
                     logger.info(f"{key} already exists, skipped")
                     return bot.strategy
 
-            bot.strategy = strategy
+            bot.strategy = strat
             for trigger in bot.strategy.next.trigger:
                 trigger.checked.clear()
             try:
@@ -191,7 +189,7 @@ class Bot:
             except Exception as exc:
                 if errors == "warn":
                     msg = traceback.format_exc()
-                    warnings.warn(f"{strategy} failed, due to {exc!r}\n{msg}")
+                    warnings.warn(f"{strat} failed, due to {exc!r}\n{msg}")
                 elif errors == "raise":
                     raise
                 else:  # ignore
@@ -200,7 +198,7 @@ class Bot:
                 stats = bot.strategy.report["stats"]
                 stats["strategy"] = str(stats["strategy"])
                 insert_stmt = sa.dialects.sqlite.insert(table).values(
-                    {"key": key, "strategy": strategy.__class__.__name__, "stats": stats.to_json()}
+                    {"key": key, "strategy": strat.__class__.__name__, "stats": stats.to_json()}
                 )
                 upsert_stmt = insert_stmt.on_conflict_do_update(
                     index_elements=[table.c.key], set_={col.key: col for col in table.columns if col not in [table.c.key]}
@@ -212,53 +210,43 @@ class Bot:
 
                 logger.info(f"Done: {key=}")
             finally:
-                if memory_saving is None:
-                    return bot.strategy
-                elif memory_saving == "moderate":
-                    return None
-                elif memory_saving == "aggressive":
-                    del strategy
-                    del bot
-                    return None
+                return bot.strategy
 
-        def _bot_run(bot, strategy, **kwargs) -> Strategy:
-            bot.strategy = strategy
+        def _bot_run(bot, strat, **kwargs) -> Strategy:
+            bot.strategy = strat
             for trigger in bot.strategy.next.trigger:
                 trigger.checked.clear()
             try:
-                logger.info(f"Optimizing: {strategy}")
+                logger.info(f"Optimizing: {strat}")
                 with util.set_level(logging.getLogger("tradingbot"), logging.WARNING):
                     bot.run(**kwargs)
             except AssertionError as exc:
-                logger.info(f"{strategy} bypassed due to {exc!r}")
+                logger.info(f"{strat} bypassed due to {exc!r}")
             except Exception as exc:
                 if errors == "warn":
                     msg = traceback.format_exc()
-                    warnings.warn(f"{strategy} failed, due to {exc!r}\n{msg}")
+                    warnings.warn(f"{strat} failed, due to {exc!r}\n{msg}")
                 elif errors == "raise":
                     raise
                 else:  # ignore
                     pass
             else:
-                logger.info(f"Done: {strategy}")
+                logger.info(f"Done: {strat}")
             finally:
-                if memory_saving is None:
-                    return bot.strategy
-                elif memory_saving == "moderate":
-                    return None
-                elif memory_saving == "aggressive":
-                    del strategy
-                    del bot
-                    return None
+                return bot.strategy
 
         func = _bot_run_persist if persist else _bot_run
         futures = [client.submit(func, copy.deepcopy(self), copy.deepcopy(strat), **kwargs) for strat in strategy.values()]
-        results = client.gather(futures)
-
-        for name, res in zip(strategy.keys(), results):
-            strategy[name] = res
-
-        self.strategy = strategy
+        if persist:
+            for fut in futures:
+                fire_and_forget(fut)
+            wait(futures)
+        else:
+            results = client.gather(futures)
+            for name, res in zip(strategy.keys(), results):
+                strategy[name] = res
+            self.strategy = strategy
+        
         if client.cluster is not None:
             client.cluster.close()
         client.close()
