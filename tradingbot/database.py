@@ -9,15 +9,20 @@ from tradingbot.data.core import Data
 
 
 class Database:
+
+    _engine = {}
+
     @staticmethod
-    @functools.lru_cache(maxsize=1)
     def get_engine(url: typing.Optional[str] = None, **kwargs) -> sa.engine.Engine:
         url = url or tb.config.general.db_url
-        return sa.create_engine(url, **kwargs)
+        if url in Database._engine:
+            return Database._engine[url]
+        Database._engine[url] = sa.create_engine(url, **kwargs)
+        return Database._engine[url]
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def get_data_table(kls: typing.Type[Data], name: str, **kwargs) -> sa.Table:
+    def get_data_table(kls: typing.Type[Data], name: str, /, **kwargs) -> sa.Table:
         url = kwargs.pop("url", tb.config.general.db_url)
         engine = Database.get_engine(url, **kwargs)
         metadata = sa.MetaData()
@@ -41,6 +46,7 @@ class Database:
         return table
 
     @staticmethod
+    @functools.lru_cache(maxsize=8)
     def get_opt_table(**kwargs) -> sa.Table:
         url = kwargs.pop("url", tb.config.general.db_url)
         engine = Database.get_engine(url, **kwargs)

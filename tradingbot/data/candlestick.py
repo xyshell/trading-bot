@@ -112,7 +112,8 @@ class Candlestick(Data):
             sql = sql.where(table.c.close_time >= pd.Timestamp(since).to_pydatetime())
         else:
             sql = sql.limit(load_len)
-        df = pd.read_sql(sql, con=engine).sort_values("close_time")
+        with engine.connect() as conn:
+            df = pd.read_sql(sql, con=conn).sort_values("close_time")
         if since is None:
             df = df.tail(load_len)
         return df.reset_index(drop=True)
