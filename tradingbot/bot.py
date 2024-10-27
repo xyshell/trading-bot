@@ -1,4 +1,5 @@
 import copy
+import importlib
 import os
 import traceback
 from typing import Callable
@@ -200,7 +201,9 @@ class Bot:
             else:
                 stats = bot.strategy.report["stats"]
                 stats["strategy"] = str(stats["strategy"])
-                insert_stmt = sa.dialects.sqlite.insert(table).values(
+                sqlalchemy_dialect = importlib.import_module(f"sqlalchemy.dialects.{engine.dialect.name}")
+                insert = sqlalchemy_dialect.insert
+                insert_stmt = insert(table).values(
                     {"key": key, "strategy": strat.__class__.__name__, "stats": stats.to_json()}
                 )
                 upsert_stmt = insert_stmt.on_conflict_do_update(
