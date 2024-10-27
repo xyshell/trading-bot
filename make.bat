@@ -22,6 +22,7 @@ rd /s/q build trading_bot.egg-info
 del /F /Q "dist\*.whl"
 python -m build -w
 rd /s/q build trading_bot.egg-info
+icacls .\dist /q /c /t /grant Users:F
 GOTO DONE
 
 :DONE
