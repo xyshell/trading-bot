@@ -90,14 +90,6 @@ class Data:
     def preload(self, preload: bool):
         self._preload = preload
 
-    @property
-    def cached(self) -> pd.DataFrame:
-        return self._cached
-    
-    @cached.setter
-    def cached(self, df: pd.DataFrame):
-        self._cached = df
-
     @abc.abstractmethod
     def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:
         pass

@@ -90,7 +90,7 @@ class BacktestPipeline(Pipeline):
             def preload_helper(data: Data):
                 pre_history = data.load(self._start)
                 history = data.load(self._end, since=self._start)
-                data.cached = pd.concat([pre_history, history], ignore_index=True)
+                data._cached = pd.concat([pre_history, history], ignore_index=True)
 
             tic = time.time()
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -151,7 +151,7 @@ class BacktestPipeline(Pipeline):
         # clear preload cache
         if preload:
             for da in strategy.data.values():
-                da.cached = None
+                del da._cached
 
         # build report
         Reporter.set(strategy)
