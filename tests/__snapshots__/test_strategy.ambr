@@ -1,40 +1,46 @@
 # serializer version: 1
-# name: TestBacktest.test_btcusdt
+# name: TestBacktestSpotStrategy.test_btcusdt
   'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
-# name: TestBacktest.test_btcusdt.1
+# name: TestBacktestSpotStrategy.test_btcusdt.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
-# name: TestBacktest.test_closed_only
+# name: TestBacktestSpotStrategy.test_closed_only
   'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
-# name: TestBacktest.test_closed_only.1
+# name: TestBacktestSpotStrategy.test_closed_only.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
-# name: TestBacktest.test_limit_order
+# name: TestBacktestSpotStrategy.test_limit_order
   'cc6020614d6d8dd9dae66ba3cc29c9cfa300dafe0eb064a0044c233bca088b3c'
 # ---
-# name: TestBacktest.test_limit_order.1
+# name: TestBacktestSpotStrategy.test_limit_order.1
   'e4a2b46e751f71db8111855f37cff7af949ac22a74863bfa76bac842d6242174'
 # ---
-# name: TestBacktest.test_limit_order.2
+# name: TestBacktestSpotStrategy.test_limit_order.2
   '6aed53345166e634f2ed33e99c9a285f791d09f32200dcf8430a9f041edac9c9'
 # ---
-# name: TestBacktest.test_limit_order.3
+# name: TestBacktestSpotStrategy.test_limit_order.3
   '57628918aa341821f4b203e1ebc25997c1ce2e21d3cdc79a320abe326a3947e9'
 # ---
-# name: TestBacktest.test_msft
+# name: TestBacktestSpotStrategy.test_msft
   'a833e74e1e47d2919a8efef2cab710b9030a901b22819028e3a24d1dbd0b8bf1'
 # ---
-# name: TestBacktest.test_msft.1
+# name: TestBacktestSpotStrategy.test_msft.1
   '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
 # ---
-# name: TestBacktest.test_optimize
+# name: TestBacktestSpotStrategy.test_optimize
   'e7909ba321a8a12c884345a0b9fe0d0b5095d9ff552ef2f067c8f786984d3100'
 # ---
-# name: TestBacktest.test_optimize.1
+# name: TestBacktestSpotStrategy.test_optimize.1
   'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
 # ---
-# name: TestBacktest.test_optimize.2
+# name: TestBacktestSpotStrategy.test_optimize.2
   'db96ff54fa80a09191fb8c5e067eed6f09ce9a29f60f62b22b7659ffa0ab5ad2'
+# ---
+# name: TestBacktestSpotStrategy.test_preload
+  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
+# ---
+# name: TestBacktestSpotStrategy.test_preload.1
+  'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---

@@ -97,6 +97,7 @@ class TestBinanceCandlestick:
         df2 = Candlestick("binance", ticker="USDT/BTC", freq="1d", load_len=500, closed_only=False).get(now)
         pd.testing.assert_frame_equal(df, df2)
 
+    @pytest.mark.live
     def test_get_now_live(self):
         now = pd.Timestamp.utcnow().tz_localize(None)
 
@@ -181,6 +182,7 @@ class TestOkxCandlestick:
         df2 = Candlestick("okx", ticker="USDT/BTC", freq="1d", load_len=500, closed_only=False).get(now)
         pd.testing.assert_frame_equal(df, df2)
 
+    @pytest.mark.live
     def test_get_now_live(self):
         now = pd.Timestamp.utcnow().tz_localize(None)
 

@@ -82,6 +82,7 @@ class BacktestPipeline(Pipeline):
         strategy.logger = logger
         strategy.start()
 
+        # preload data if needed
         if preload:
             for da in strategy.data.values():
                 da.preload = True
@@ -98,6 +99,10 @@ class BacktestPipeline(Pipeline):
                     future.result()
             toc = time.time()
             logger.info(f"Data Preload: took {toc - tic:.2f} seconds")
+
+        # clear trigger status
+        for tri in strategy.next.trigger:
+            tri.checked.clear()
 
         now_generator = self._get_now_generator(strategy.next.trigger)
         for now in now_generator():
@@ -142,6 +147,11 @@ class BacktestPipeline(Pipeline):
 
             toc = time.time()
             logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
+
+        # clear preload cache
+        if preload:
+            for da in strategy.data.values():
+                da.cached = None
 
         # build report
         Reporter.set(strategy)

@@ -44,7 +44,7 @@ class _SMACross(tb.Strategy):
         self.logger.info(f"Strategy stopped, final NAV={final_nav}")
 
 
-class TestBacktest:
+class TestBacktestSpotStrategy:
     def test_btcusdt(self, snapshot):
         # fmt: off
         bot = tb.Bot(
@@ -226,3 +226,23 @@ class TestBacktest:
         assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
         assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
         assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
+
+    def test_preload(self, snapshot):
+        # fmt: off
+        bot = tb.Bot(
+            mode="backtest",  # or "live"
+            start="2024-01-01", end="2024-01-10",  # for backtest mode
+            preload=True,
+        )
+        # fmt: on
+        bot.data = {
+            # subscribe to USDT/BTC 1h OHLCV from binance
+            "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
+        }
+        bot.strategy = _SMACross(ticker="USDT/BTC", fast=10, slow=30)
+        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
+        bot.account = {"USDT": 1000}
+        bot.run()
+
+        assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
+        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
