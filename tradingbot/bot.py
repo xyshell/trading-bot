@@ -137,6 +137,7 @@ class Bot:
         if_exists: str = "ignore",
         remote: bool = False,
         restart: bool = False,
+        block: bool = False,
         n_workers: int = os.cpu_count(),
         scheduler_url: str | None = None,
         **kwargs,
@@ -151,6 +152,7 @@ class Bot:
                 "ignore", "replace" or "raise". Defaults to "ignore".
             remote (bool, optional): if True, run on remote cluster. Defaults to False.
             restart (bool, optional): if True, restart cluster. Defaults to False.
+            block (bool, optional): if True, block until finished. Defaults to False.
             scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
             n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
             **kwargs: passed to bot.run(**kwargs)
@@ -174,7 +176,8 @@ class Bot:
             table = Database.get_opt_table()
             if if_exists in {"ignore", "raise"}:
                 sql = sa.select(table.c.key).where(table.c.key == key)
-                res = engine.connect().execute(sql).fetchall()
+                with engine.connect() as conn:
+                    res = conn.execute(sql).fetchall()
                 if res and if_exists == "raise":
                     raise KeyError(f"{key} already exists.")
                 elif res and if_exists == "ignore":
@@ -182,8 +185,6 @@ class Bot:
                     return bot.strategy
 
             bot.strategy = strat
-            for trigger in bot.strategy.next.trigger:
-                trigger.checked.clear()
             try:
                 logger.info(f"Optimizing: {key=}")
                 with util.set_level(logging.getLogger("tradingbot"), logging.WARNING):
@@ -212,8 +213,7 @@ class Bot:
                 with engine.connect() as conn:
                     result = conn.execute(upsert_stmt)
                     conn.commit()
-                    logger.debug(f"upsert affected {result.rowcount} rows in {table.name}")
-
+                logger.debug(f"upsert affected {result.rowcount} rows in {table.name}")
                 logger.info(f"Done: {key=}")
             finally:
                 return bot.strategy
@@ -246,7 +246,8 @@ class Bot:
         if persist:
             for fut in futures:
                 fire_and_forget(fut)
-            wait(futures)
+            if remote and block:
+                wait(futures)
         else:
             results = client.gather(futures)
             for name, res in zip(strategy.keys(), results):

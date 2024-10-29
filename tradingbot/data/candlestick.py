@@ -329,7 +329,7 @@ class OkxCandlestick(Candlestick):
         while True:
             ohlcv = self._client.fetch_ohlcv(symbol, self.freq, since=since)
             candlestick.extend(ohlcv)
-            if candlestick[-1][0] >= end_ts or not ohlcv:
+            if not ohlcv or candlestick[-1][0] >= end_ts:
                 break
             since = candlestick[-1][0] + 1000
 
