@@ -1,6 +1,9 @@
 import copy
 
+import ccxt
 import pandas as pd
+import requests
+from retry import retry
 
 import tradingbot as tb
 import tradingbot.util as util
@@ -31,6 +34,8 @@ class CCXTExchange(Exchange):
     def get_price(self, ticker: str) -> float:
         return self.client.fetch_ticker(self.get_symbol(ticker))["last"]
 
+    @retry((requests.exceptions.ReadTimeout, requests.exceptions.ProxyError, requests.exceptions.ConnectionError,
+            ccxt.errors.RequestTimeout), tries=3)
     def update_orders(self, now: pd.Timestamp, orders: list[Order]):
         import ccxt
 
@@ -44,9 +49,7 @@ class CCXTExchange(Exchange):
             try:
                 order_info = self.client.fetch_order(order.id_, symbol=self.get_symbol(order.ticker))
             except ccxt.errors.OrderNotFound:
-                continue
-            except ccxt.errors.RequestTimeout:
-                self.strategy.logger.warning(f"Order fetch timeout: {order}. skipped.")
+                util.logger.warning(f"Order(id={order.id_}) not found. This should not happen.")
                 continue
             match order_info["status"]:
                 case "open":

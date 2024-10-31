@@ -9,6 +9,8 @@ from typing import Callable
 import psutil
 
 import pandas as pd
+import requests
+from retry import retry
 
 import tradingbot.util as util
 from tradingbot.data.core import Data
@@ -29,6 +31,7 @@ class Pipeline(abc.ABC):
         pass
 
     @staticmethod
+    @retry((requests.exceptions.ReadTimeout, requests.exceptions.ProxyError, requests.exceptions.ConnectionError), tries=3)
     def _update_data(now: pd.Timestamp, data: Data, **kwargs):
         tic = time.time()
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -197,8 +200,14 @@ class LivePipeline(Pipeline):
                 if any(triggered):
                     strategy.logger.debug(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
-                    # prepare info
-                    self._update_data(now, strategy.data)
+                    try:
+                        # prepare info
+                        self._update_data(now, strategy.data)
+                    except Exception as e:
+                        strategy.logger.error(f"Failed to update data. due to {e!r}. Delaying to next run.")
+                        msg = traceback.format_exc()
+                        strategy.logger.debug(f"{msg}")
+                        continue
 
                     # update status of pending orders
                     strategy.exchange.update_orders(now, strategy.pending_order)
