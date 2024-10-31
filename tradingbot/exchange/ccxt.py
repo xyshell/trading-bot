@@ -69,7 +69,7 @@ class CCXTExchange(Exchange):
                     )
                     trans = Transaction(
                         ticker=order.ticker,
-                        prc=order.param["price"],
+                        prc=order_info["average"],
                         from_=(from_ticker, from_qty),
                         to_=(to_ticker, to_qty),
                         tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
