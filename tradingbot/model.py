@@ -1,3 +1,4 @@
+import copy
 from enum import Enum
 from pathlib import Path
 import typing
@@ -109,12 +110,20 @@ class Config(BaseSettings):
 
 
 class Position(BaseModel):
-    """Holding position and its state"""
+    """Holding position"""
 
     ticker: str  # e.g. BTC, USDT
     qty: float  # quantity, with sign indicates long/short
     entry_prc: float = 0.0  # entry price, i.e. historical average cost price
-    market_prc: float = 1.0  # market price
+    market_prc_: float = 1.0  # defaults to reporting currency unit
+
+    @property
+    def market_prc(self) -> float:
+        return self.market_prc_
+
+    @market_prc.setter
+    def market_prc(self, value: float) -> None:
+        self.market_prc_ = value
 
     @computed_field
     def pnl(self) -> float:  # profit and loss
@@ -137,7 +146,32 @@ class Position(BaseModel):
         self.entry_prc = 0.0
 
 
+class MarginPosition(Position):
+
+    leverage: int = 1
+    margin: tuple[str, float] = ("", 0.0)
+    last_market_prc_: float | None = Field(default=None, exclude=True, repr=False)
+
+    @Position.market_prc.setter
+    def market_prc(self, value: float) -> None:
+        self.last_market_prc_ = value if self.last_market_prc_ is None else self.market_prc  # init or update last market price
+        self.market_prc_ = value
+        mark_to_market_pnl = (self.market_prc - self.last_market_prc_) * self.qty 
+        self.margin = (self.margin[0], float(self.margin[1] + mark_to_market_pnl))  # mark to market 
+
+    @computed_field
+    def liq_prc(self) -> float:  # liquidation price
+        sign = -1 if self.qty > 0 else 1
+        return self.entry_prc * (1 + sign / self.leverage)
+
+    def clear(self) -> None:
+        super().clear()
+        self.margin = (self.margin[0], 0.0)
+
+
 class Account:
+
+    @util.validate
     def __init__(self, position: list[Position]):
         self._position = {pos.ticker: pos for pos in position}
 
@@ -166,6 +200,7 @@ class Account:
         return iter(self.position)
 
     def __add__(self, pos: Position) -> typing.Self:
+        pos = copy.deepcopy(pos)
         this = self[pos.ticker]
         new_qty = this.qty + pos.qty
         if this.qty * new_qty < 0:
@@ -180,16 +215,52 @@ class Account:
         return self
 
     def __sub__(self, pos: Position) -> typing.Self:
+        pos = copy.deepcopy(pos)
         pos.qty = -pos.qty
         return self + pos
 
-    def all_long(self) -> bool:
+    def all_sufficient(self) -> bool:
         return all(pos.qty >= 0 for pos in self._position.values())
 
+class MarginAccount(Account):
+
+    @classmethod
+    def create(cls, wealth: dict[str, float]) -> typing.Self:
+        return cls([Position(ticker=ticker, qty=qty) for ticker, qty in wealth.items()])
+
+    def __repr__(self):
+        wealth = {pos.ticker: pos.qty for pos in self.position}
+        return f"MarginAccount({wealth})"
+
+    @property
+    def position(self) -> list[Position]:
+        return [pos for pos in self._position.values() if pos.qty or isinstance(pos, MarginPosition)]
+    
+    def __getitem__(self, ticker: str) -> MarginPosition:
+        if ticker not in self._position:
+            pos = MarginPosition(ticker=ticker, qty=0)
+            self._position[ticker] = pos
+        return self._position[ticker]
+
+    def __add__(self, pos: Position | MarginPosition) -> typing.Self:
+        self = super().__add__(pos)
+        pos_ = self[pos.ticker]
+        if isinstance(pos_, MarginPosition):
+            pos_.margin = pos.margin
+            pos_.leverage = pos.leverage
+        return self
+
+    def all_sufficient(self) -> bool:
+        result = True
+        for pos in self._position.values():
+            if isinstance(pos, MarginPosition):
+                result &= pos.margin[1] >= 0
+            else:
+                result &= pos.qty >= 0
+        return result
 
 class Transaction(BaseModel):
     """conversion from one asset to another"""
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     ticker: str
@@ -214,25 +285,76 @@ class Transaction(BaseModel):
             ), f"Failed to reconcile {self}"
         return self
 
-    def split(self) -> tuple[Position, Position]:
+    def split(self) -> tuple[Position, Position, Position]:
         """Split a transaction into from position, to position and tcost position"""
         quote_ticker = util.get_quote_ticker(self.ticker)
         from_prc = self.prc if self.from_[0] != quote_ticker else 0.0
         to_prc = self.prc if self.to_[0] != quote_ticker else 0.0
         return (
-            Position(ticker=self.from_[0], qty=self.from_[1], entry_prc=from_prc),
-            Position(ticker=self.to_[0], qty=self.to_[1], entry_prc=to_prc),
-            Position(ticker=self.tcost[0], qty=self.tcost[1]),
+            Position(ticker=self.from_[0], qty=self.from_[1], entry_prc=from_prc),  # withdraw
+            Position(ticker=self.to_[0], qty=self.to_[1], entry_prc=to_prc),  # deposit
+            Position(ticker=self.tcost[0], qty=self.tcost[1]),  # vanish
         )
 
     def __bool__(self) -> bool:
         return not (self.from_[1] == self.to_[1] == 0)
 
 
+class _MarginTransactionTypeEnum(Enum):
+    OPEN = "OPEN"
+    CLOSE = "CLOSE"
+
+class MarginTransaction(Transaction):
+    """conversion from one to another margin position"""
+    type_: _MarginTransactionTypeEnum
+    leverage: int
+
+    @model_validator(mode="after")
+    def reconcile(self) -> typing.Self:
+        assert (
+            self.from_[0] in self.ticker and self.to_[0] in self.ticker
+        ), f"Invalid transaction: {self.from_[0]}, {self.to_[0]} not in {self.ticker}"
+        quote_ticker = util.get_quote_ticker(self.ticker)
+        assert self.tcost[0] == quote_ticker, f"Tcost should be charged in '{quote_ticker}'"
+
+        if self.type_ is _MarginTransactionTypeEnum.OPEN:
+            if self.from_[0] == self.tcost[0]:
+                left = (self.from_[1] - self.tcost[1])
+                right = abs(util.convert(self.to_, self.ticker, self.prc)[1] / self.leverage)
+            else:
+                left = (self.to_[1] + self.tcost[1])
+                right = abs(util.convert(self.from_, self.ticker, self.prc)[1] / self.leverage)
+            assert np.isclose(left, right), f"Failed to reconcile {self}"
+        else:  # CLOSE
+            pass  # TODO: introduce margin info and reconcile on margin + tcost == USDT
+        return self
+
+    def split(self) -> tuple[Position, Position, Position]:
+        # from position, to MarginPosition, tcost position -> open
+        # from MarginPosition, to position, tcost position -> close
+        quote_ticker = util.get_quote_ticker(self.ticker)
+        from_prc = self.prc if self.from_[0] != quote_ticker else 0.0
+        to_prc = self.prc if self.to_[0] != quote_ticker else 0.0
+        from_pos_type = Position if self.from_[0] == self.tcost[0] else MarginPosition
+        to_pos_type = Position if self.to_[0] == self.tcost[0] else MarginPosition
+        return (
+            from_pos_type(ticker=self.from_[0], qty=self.from_[1], entry_prc=from_prc),  # withdraw
+            to_pos_type(ticker=self.to_[0], qty=self.to_[1], entry_prc=to_prc, 
+                           leverage=self.leverage, margin=(quote_ticker, self.from_[1] - self.tcost[1]), liq_prc=self.prc * (1 + 1 / self.leverage)),  # deposit
+            Position(ticker=self.tcost[0], qty=self.tcost[1]),  # vanish
+        )
+
+
 class Order(BaseModel):
     class Action(Enum):
+        # spot
         BUY = "BUY"
         SELL = "SELL"
+        # future
+        OPEN_LONG = "OPEN_LONG"
+        OPEN_SHORT = "OPEN_SHORT"
+        CLOSE_LONG = "CLOSE_LONG"
+        CLOSE_SHORT = "CLOSE_SHORT"
 
     class Type(Enum):
         LIMIT = "LIMIT"
@@ -271,17 +393,19 @@ class Order(BaseModel):
 
     @property
     def from_ticker(self) -> str:
-        if self.action is Order.Action.BUY:
+        if self.action is Order.Action.BUY or self.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
             return util.get_quote_ticker(self.ticker)
-        elif self.action is Order.Action.SELL:
+        elif self.action is Order.Action.SELL or self.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
             return util.get_base_ticker(self.ticker)
+        raise NotImplementedError
 
     @property
     def to_ticker(self) -> str:
-        if self.action is Order.Action.BUY:
+        if self.action is Order.Action.BUY or self.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
             return util.get_base_ticker(self.ticker)
-        elif self.action is Order.Action.SELL:
+        elif self.action is Order.Action.SELL or self.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
             return util.get_quote_ticker(self.ticker)
+        raise NotImplementedError
 
     def cancel(self, exchange) -> typing.Self:
         self.status = Order.Status.CANCELED

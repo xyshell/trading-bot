@@ -21,3 +21,7 @@ class Exchange:
 
     def update_orders(self, now: pd.Timestamp, orders: list[Order]):
         pass
+
+
+class FutureExchange(Exchange):
+    pass

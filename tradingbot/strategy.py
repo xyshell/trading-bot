@@ -21,7 +21,7 @@ class Strategy(abc.ABC):
         self.param.update(kwargs)
 
         self.pending_order: list[Order] = []  # keep track of all pending orders
-        self.order_history: dict[pd.Timestamp, Order] = {}  # record all filled orders
+        self.order_history: list[tuple[pd.Timestamp, Order]] = []  # record all filled orders
         self.transaction_history: list[Transaction] = []  # record all transactions
         self.account: Account  # keep track of all positions
         self.account_history: dict[pd.Timestamp, list[Account]] = {}  # record all positions
@@ -65,9 +65,21 @@ class Strategy(abc.ABC):
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
         buy_sell = order_report["action"].to_frame()
         buy_sell["one"] = 1
-        df = pd.concat([df, buy_sell.pivot(columns="action", values="one")], axis=1)
-        df["BUY"] = (df["BUY"] * df["close"]) if "BUY" in df.columns else np.nan
-        df["SELL"] = (df["SELL"] * df["close"]) if "SELL" in df.columns else np.nan
+        buy_sell_clean = buy_sell.pivot(columns="action", values="one").resample(sample_freq, closed="left").sum()
+        buy_sell_clean = buy_sell_clean.loc[buy_sell_clean.index.isin(buy_sell.index)]
+        df = pd.concat([df, buy_sell_clean], axis=1)
+        buy_col = {Order.Action.BUY.name, Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name}
+        sell_col = {Order.Action.SELL.name, Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name}
+        df["BUY"] = np.where(df[list(buy_col & set(df.columns))].any(axis=1), df["close"], np.nan)
+        df["SELL"] = np.where(df[list(sell_col & set(df.columns))].any(axis=1), df["close"], np.nan)
+        if Order.Action.OPEN_LONG.name in df.columns and Order.Action.OPEN_SHORT.name in df.columns:
+            df["BUY_PLUS"] = np.where(df[[Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name]].sum(axis=1) == 2, df["close"], np.nan)
+        else:
+            df["BUY_PLUS"] = np.nan
+        if Order.Action.CLOSE_LONG.name in df.columns and Order.Action.CLOSE_SHORT.name in df.columns:
+            df["SELL_PLUS"] = np.where(df[[Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name]].sum(axis=1) == 2, df["close"], np.nan)
+        else:
+            df["SELL_PLUS"] = np.nan
         if "volume" not in df.columns and "base_volume" in df.columns:
             df.rename(columns={"base_volume": "volume"}, inplace=True)
         df.drop_duplicates(subset=["ticker", "close_time"], keep="last", inplace=True)
@@ -91,8 +103,10 @@ class Strategy(abc.ABC):
             addplot=[
                 mpf.make_addplot(df["nav"], panel=0, alpha=1.0, color="b", label="NAV"),
                 *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=False, label=col) for col in port_report.columns if col != "nav"],
-                mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#6cfa5f", secondary_y=False, label="BUY"),
+                mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#4db344", secondary_y=False, label="BUY"),
                 mpf.make_addplot(df["SELL"], panel=1, type="scatter", markersize=50, marker="v", color="#fa5f7e", secondary_y=False, label="SELL"),
+                mpf.make_addplot(df["BUY_PLUS"], panel=1, type="scatter", markersize=50, marker=10, color="#4db344", secondary_y=False, label=""),
+                mpf.make_addplot(df["SELL_PLUS"], panel=1, type="scatter", markersize=50, marker=11, color="#fa5f7e", secondary_y=False, label=""),
             ],
             warn_too_much_data=len(df),
             returnfig=True

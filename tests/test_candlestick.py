@@ -68,6 +68,7 @@ class TestBinanceCandlestick:
         assert df["close_time"].max() > pd.Timestamp("2024-01-01 01:00:00")
         assert util.hash_pd(df) == snapshot
 
+    @pytest.mark.fetch
     def test_get_history(self, snapshot):
         df = Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=500, closed_only=False).get(pd.Timestamp("2024-01-01"))
         assert len(df) == 500
@@ -87,6 +88,7 @@ class TestBinanceCandlestick:
         )
         pd.testing.assert_frame_equal(df, df2)
 
+    @pytest.mark.fetch
     def test_get_now_backtest(self):
         now = pd.Timestamp.utcnow().tz_localize(None)
 
