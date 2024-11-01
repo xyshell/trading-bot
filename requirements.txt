@@ -8,7 +8,7 @@ psutil==6.0.0
 psycopg2==2.9.10
 
 # data
-yfinance==0.2.44  # optional
+yfinance==0.2.48  # optional
 python-binance==1.0.19  # optional
 
 # exchange
