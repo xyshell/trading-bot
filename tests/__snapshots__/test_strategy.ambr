@@ -1,15 +1,39 @@
 # serializer version: 1
 # name: TestBacktestFutureStrategy.test_btcusdt_ls
-  '2bf95992b68c2a814ced25747fcdc4aa86b00b8c329fff95af9a12e75f98e251'
+  'd85f1ef106c2c937bf940f04798c3a2cfaa57e5433185a7d5a31851b9827616f'
 # ---
 # name: TestBacktestFutureStrategy.test_btcusdt_ls.1
-  'a04a6cf62486ef59a26956805a7ab218e4c0053f0f27e7a5c796441fa1acd6fa'
+  '30486d9a79ea54c7587a19d85a8e8aadabfb7f36f9ce3ee1b8708a31b683f6ac'
+# ---
+# name: TestBacktestFutureStrategy.test_btcusdt_ls.2
+  'cc3ca3f353dfbb692eb866436d55aea7317af31b3126e94f044d7c4b12ba638a'
+# ---
+# name: TestBacktestFutureStrategy.test_btcusdt_ls.3
+  '1486e50dbc7c814791a53a758306c1bbf9f8a165c295e47d1cb34a5ac1941c33'
+# ---
+# name: TestBacktestFutureStrategy.test_limit_order
+  '18521e8a08a0f909f7d45143df62264f75a7524d5c76ee4d6e2e168fe423dbf3'
+# ---
+# name: TestBacktestFutureStrategy.test_limit_order.1
+  '8445a2a79f7aa47b2dec0800243ad1b831f1585cd8da245dcdffbe0d2dc3c523'
+# ---
+# name: TestBacktestFutureStrategy.test_limit_order.2
+  'c65cb7d07ed1d36c9802f38dd16ac7eac9af86ac9dd4fa6739dec7952f30f529'
+# ---
+# name: TestBacktestFutureStrategy.test_limit_order.3
+  '466c54fe55ed688899100391ffee1eedd90f9afc8b02c7688c7b39528d8b0eb4'
 # ---
 # name: TestBacktestFutureStrategy.test_liquidation
-  '377b2451024be52878cca88069b3adfcf2aa8409b5e9b0c917333c6d9a54b54d'
+  'e5cd99e0ae8e526d44538cb8194e76a62f02e09658e6998249880f2a23c66dbe'
 # ---
 # name: TestBacktestFutureStrategy.test_liquidation.1
-  'e5cd99e0ae8e526d44538cb8194e76a62f02e09658e6998249880f2a23c66dbe'
+  '9009c50224f3b5fcc8a3284e5417a14e5bc7070f2ab842b159d6ed661c07fc22'
+# ---
+# name: TestBacktestFutureStrategy.test_liquidation.2
+  '24afdbc9ed20fc4309896503bc6eb2105319578c75b82f5e51db70c38775b41c'
+# ---
+# name: TestBacktestFutureStrategy.test_liquidation.3
+  'af0c05b3cdd9c517e985bb74447a6ce88acb850b1db2dabfc59d73b7df37b58f'
 # ---
 # name: TestBacktestSpotStrategy.test_btcusdt
   'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
@@ -33,7 +57,7 @@
   '6aed53345166e634f2ed33e99c9a285f791d09f32200dcf8430a9f041edac9c9'
 # ---
 # name: TestBacktestSpotStrategy.test_limit_order.3
-  '57628918aa341821f4b203e1ebc25997c1ce2e21d3cdc79a320abe326a3947e9'
+  'b9495495cb3e3bbe250a1482f3f42f80e953136edbb43283deb025498dcb22ea'
 # ---
 # name: TestBacktestSpotStrategy.test_msft
   'a833e74e1e47d2919a8efef2cab710b9030a901b22819028e3a24d1dbd0b8bf1'

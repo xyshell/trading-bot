@@ -65,11 +65,13 @@ def to_list(obj):
 
 def get_base_ticker(ticker: str) -> str:
     """USDT/BTC -> BTC"""
+    assert "/" in ticker
     return ticker.split("/")[1]
 
 
 def get_quote_ticker(ticker: str) -> str:
     """USDT/BTC -> USDT"""
+    assert "/" in ticker
     return ticker.split("/")[0]
 
 

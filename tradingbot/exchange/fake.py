@@ -4,7 +4,10 @@ import logging
 import pandas as pd
 
 import tradingbot.util as util
-from tradingbot.model import MarginPosition, MarginTransaction, Order, Transaction
+from tradingbot.model import (
+    Order, MarginPosition, 
+    Transaction, OpenTransaction, CloseTransaction, 
+)
 from tradingbot.exchange.core import Exchange, FutureExchange
 
 logger = logging.getLogger(__name__)
@@ -150,9 +153,9 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
             case Order.Type.MARKET:
                 exec_prc = candle["close"].iloc[-1]
             case Order.Type.LIMIT if order.status is Order.Status.NEW:
-                if order.action is Order.Action.BUY and order.param["price"] >= candle["close"].iloc[-1]:
+                if order.action in {Order.Action.OPEN_LONG, Order.Action.CLOSE_SHORT} and order.param["price"] >= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
-                elif order.action is Order.Action.SELL and order.param["price"] <= candle["close"].iloc[-1]:
+                elif order.action in {Order.Action.OPEN_SHORT, Order.Action.CLOSE_LONG} and order.param["price"] <= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
                 else:
                     order.status = Order.Status.PENDING
@@ -183,7 +186,9 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
                 raise NotImplementedError
 
             case Order.SizeType.QUOTE if to_ticker == quote_ticker:
-                raise NotImplementedError
+                to_qty = order.size / self._leverage
+                _, from_qty = util.convert((to_ticker, to_qty * self._leverage), order.ticker, exec_prc)
+                from_qty *= -1 if order.action is Order.Action.CLOSE_SHORT else 1
 
             case Order.SizeType.BASE if from_ticker == base_ticker:
                 raise NotImplementedError
@@ -196,16 +201,29 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
 
         fee_qty = from_qty if from_ticker == quote_ticker else to_qty
         tcost = (quote_ticker, fee_qty * self._commission)  # charge tcost in quote_ticker
-        trans = MarginTransaction(
-            type_="OPEN" if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT} else "CLOSE", 
-            ticker=order.ticker, 
-            prc=exec_prc, 
-            from_=(from_ticker, from_qty), 
-            to_=(to_ticker, to_qty), 
-            tcost=tcost, 
-            timestamp=now, 
-            leverage=self._leverage
-        )
+        if to_ticker == quote_ticker:
+            to_qty -= tcost[1]
+
+        if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
+            trans = OpenTransaction(
+                ticker = order.ticker, 
+                prc = exec_prc, 
+                from_ = (from_ticker, from_qty),  # normal position
+                to_ = (to_ticker, to_qty),  # margin position
+                tcost = tcost,
+                timestamp = now,
+                leverage = self._leverage
+            )
+        else:  # close position
+            trans = CloseTransaction(
+                ticker = order.ticker, 
+                prc = exec_prc, 
+                from_ = (from_ticker, from_qty),  # margin position
+                to_ = (to_ticker, to_qty),  # normal position
+                tcost = tcost,
+                timestamp = now,
+                leverage = self._leverage
+            )
         if not trans:
             order.status = Order.Status.REJECTED
             logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to trivial transaction, transaction={trans}")

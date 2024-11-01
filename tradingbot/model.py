@@ -148,7 +148,7 @@ class Position(BaseModel):
 
 class MarginPosition(Position):
 
-    leverage: int = 1
+    leverage: int = -1
     margin: tuple[str, float] = ("", 0.0)
     last_market_prc_: float | None = Field(default=None, exclude=True, repr=False)
 
@@ -162,7 +162,7 @@ class MarginPosition(Position):
     @computed_field
     def liq_prc(self) -> float:  # liquidation price
         sign = -1 if self.qty > 0 else 1
-        return self.entry_prc * (1 + sign / self.leverage)
+        return self.entry_prc * (1 + sign / (self.leverage if self.leverage > 0 else np.nan))
 
     def clear(self) -> None:
         super().clear()
@@ -200,6 +200,7 @@ class Account:
         return iter(self.position)
 
     def __add__(self, pos: Position) -> typing.Self:
+        self = copy.deepcopy(self)
         pos = copy.deepcopy(pos)
         this = self[pos.ticker]
         new_qty = this.qty + pos.qty
@@ -246,9 +247,19 @@ class MarginAccount(Account):
         self = super().__add__(pos)
         pos_ = self[pos.ticker]
         if isinstance(pos_, MarginPosition):
-            pos_.margin = pos.margin
-            pos_.leverage = pos.leverage
+            pos_.margin = (pos.margin[0], pos_.margin[1] + pos.margin[1])
+            if pos_.leverage == -1:  # uninitialized leverage 
+                pos_.leverage = pos.leverage
+            elif pos_.leverage != pos.leverage:
+                raise NotImplementedError
         return self
+
+    def __sub__(self, pos: Position | MarginPosition) -> typing.Self:
+        pos = copy.deepcopy(pos)
+        pos.qty = -pos.qty
+        if isinstance(pos, MarginPosition):
+            pos.margin = (pos.margin[0], -pos.margin[1])
+        return self + pos
 
     def all_sufficient(self) -> bool:
         result = True
@@ -270,11 +281,14 @@ class Transaction(BaseModel):
     tcost: tuple[str, float]  # transaction cost, e.g. ("USDT", 10)
     timestamp: pd.Timestamp
 
-    @model_validator(mode="after")
-    def reconcile(self) -> typing.Self:
+    def _validate(self) -> None:
         assert (
             self.from_[0] in self.ticker and self.to_[0] in self.ticker
         ), f"Invalid transaction: {self.from_[0]}, {self.to_[0]} not in {self.ticker}"
+
+    @model_validator(mode="after")
+    def reconcile(self) -> typing.Self:
+        self._validate()
         if self.tcost[0] == self.from_[0]:
             assert np.isclose(
                 self.from_[1] - self.tcost[1], util.convert(self.to_, self.ticker, self.prc)[1]
@@ -300,48 +314,63 @@ class Transaction(BaseModel):
         return not (self.from_[1] == self.to_[1] == 0)
 
 
-class _MarginTransactionTypeEnum(Enum):
-    OPEN = "OPEN"
-    CLOSE = "CLOSE"
+class _MarginTransaction(Transaction):
+    leverage: int
 
-class MarginTransaction(Transaction):
-    """conversion from one to another margin position"""
-    type_: _MarginTransactionTypeEnum
+    def _validate(self) -> None:
+        super()._validate()
+        quote_ticker = util.get_quote_ticker(self.ticker)
+        assert self.tcost[0] == quote_ticker, f"Tcost should be charged in '{quote_ticker}'"
+
+
+class OpenTransaction(_MarginTransaction):
+    """conversion from normal position to margin position"""
     leverage: int
 
     @model_validator(mode="after")
     def reconcile(self) -> typing.Self:
-        assert (
-            self.from_[0] in self.ticker and self.to_[0] in self.ticker
-        ), f"Invalid transaction: {self.from_[0]}, {self.to_[0]} not in {self.ticker}"
-        quote_ticker = util.get_quote_ticker(self.ticker)
-        assert self.tcost[0] == quote_ticker, f"Tcost should be charged in '{quote_ticker}'"
-
-        if self.type_ is _MarginTransactionTypeEnum.OPEN:
-            if self.from_[0] == self.tcost[0]:
-                left = (self.from_[1] - self.tcost[1])
-                right = abs(util.convert(self.to_, self.ticker, self.prc)[1] / self.leverage)
-            else:
-                left = (self.to_[1] + self.tcost[1])
-                right = abs(util.convert(self.from_, self.ticker, self.prc)[1] / self.leverage)
-            assert np.isclose(left, right), f"Failed to reconcile {self}"
-        else:  # CLOSE
-            pass  # TODO: introduce margin info and reconcile on margin + tcost == USDT
+        self._validate()
+        lhs = (self.from_[1] - self.tcost[1])
+        rhs = abs(util.convert(self.to_, self.ticker, self.prc)[1] / self.leverage)
+        assert np.isclose(lhs, rhs), f"Failed to reconcile {self}"
         return self
 
-    def split(self) -> tuple[Position, Position, Position]:
-        # from position, to MarginPosition, tcost position -> open
-        # from MarginPosition, to position, tcost position -> close
+    def split(self) -> tuple[Position, MarginPosition, Position]:
         quote_ticker = util.get_quote_ticker(self.ticker)
-        from_prc = self.prc if self.from_[0] != quote_ticker else 0.0
-        to_prc = self.prc if self.to_[0] != quote_ticker else 0.0
-        from_pos_type = Position if self.from_[0] == self.tcost[0] else MarginPosition
-        to_pos_type = Position if self.to_[0] == self.tcost[0] else MarginPosition
         return (
-            from_pos_type(ticker=self.from_[0], qty=self.from_[1], entry_prc=from_prc),  # withdraw
-            to_pos_type(ticker=self.to_[0], qty=self.to_[1], entry_prc=to_prc, 
-                           leverage=self.leverage, margin=(quote_ticker, self.from_[1] - self.tcost[1]), liq_prc=self.prc * (1 + 1 / self.leverage)),  # deposit
-            Position(ticker=self.tcost[0], qty=self.tcost[1]),  # vanish
+            Position(ticker=self.from_[0], qty=self.from_[1], entry_prc=0.0),  # withdraw from normal position
+            MarginPosition(
+                ticker=self.to_[0], 
+                qty=self.to_[1], 
+                entry_prc=self.prc, 
+                leverage=self.leverage, 
+                margin=(quote_ticker, self.from_[1] - self.tcost[1])
+            ),  # deposit to margin position
+            Position(ticker=self.tcost[0], qty=self.tcost[1]),  # vanish as tcost
+        )
+    
+
+class CloseTransaction(_MarginTransaction):
+    """conversion from normal position to margin position"""
+    leverage: int
+
+    @model_validator(mode="after")
+    def reconcile(self) -> typing.Self:
+        self._validate()
+        return self
+
+    def split(self) -> tuple[MarginPosition, Position, Position]:
+        quote_ticker = util.get_quote_ticker(self.ticker)
+        return (
+            MarginPosition(
+                ticker=self.from_[0], 
+                qty=self.from_[1], 
+                entry_prc=self.prc, 
+                leverage=self.leverage,
+                margin=(quote_ticker, self.to_[1] + self.tcost[1]),
+            ),  # withdraw from margin position
+            Position(ticker=self.to_[0], qty=self.to_[1], entry_prc=0.0),  # deposit to normal position
+            Position(ticker=self.tcost[0], qty=self.tcost[1]),  # vanish as tcost
         )
 
 

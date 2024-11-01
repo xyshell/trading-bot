@@ -42,7 +42,7 @@ class Reporter:
         else:
             nav = position_report["market_val"]
         portfolio_report = nav.groupby(["timestamp", "ticker"]).sum().unstack().fillna(0.0)
-        portfolio_report.insert(0, "nav", portfolio_report.sum(axis=1).abs())
+        portfolio_report.insert(0, "nav", portfolio_report.abs().sum(axis=1))
         return portfolio_report
 
     @staticmethod
@@ -51,9 +51,9 @@ class Reporter:
             field = Transaction.model_fields.copy()
             del field["from_"], field["to_"], field["tcost"]
             return pd.DataFrame(columns=list(field) + ["from_ticker", "from_qty", "to_ticker", "to_qty", "tcost_ticker", "tcost_qty"])
-        transaction_report = pd.concat(
-            {trans.timestamp: pd.Series(trans.model_dump(exclude="timestamp")) for trans in strategy.transaction_history}
-        ).unstack()
+        transaction_report = pd.DataFrame([
+            pd.Series(trans.model_dump(mode="json")) for trans in strategy.transaction_history
+        ]).set_index("timestamp")
         transaction_report[["from_ticker", "from_qty"]] = pd.DataFrame(
             transaction_report["from_"].tolist(), index=transaction_report.index
         )

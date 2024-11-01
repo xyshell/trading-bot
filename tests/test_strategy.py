@@ -89,6 +89,34 @@ class _SMACrossLS(tb.Strategy):
         final_nav = self.report["portfolio"]["nav"].iloc[-1]
         self.logger.info(f"Strategy stopped, final NAV={final_nav}")
 
+class _LimitOrderDummy(tb.Strategy):
+    param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
+
+    @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
+    def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+        curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
+        for order in context["pending_order"]:
+            if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
+                order.status = Order.Status.CANCELED
+                return tb.Order(
+                    action="BUY",
+                    ticker=self.param["ticker"],
+                    size_type="PCTG",
+                    size=0.5,
+                    type="LIMIT",
+                    param={"price": curr_prc * 0.98},
+                )
+
+        if not context["pending_order"]:
+            return tb.Order(
+                action="BUY",
+                ticker=self.param["ticker"],
+                size_type="PCTG",
+                size=0.5,
+                type="LIMIT",
+                param={"price": curr_prc * 0.98},
+            )
+                
 
 class TestBacktestSpotStrategy:
     def test_btcusdt(self, snapshot):
@@ -233,37 +261,10 @@ class TestBacktestSpotStrategy:
             assert util.hash_pd(strat.report["stats"].drop("strategy")) == snapshot
 
     def test_limit_order(self, snapshot):
-        class Test(tb.Strategy):
-            param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
-
-            @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
-            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
-                curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
-                for order in context["pending_order"]:
-                    if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
-                        order.status = Order.Status.CANCELED
-                        return tb.Order(
-                            action="BUY",
-                            ticker=self.param["ticker"],
-                            size_type="PCTG",
-                            size=0.5,
-                            type="LIMIT",
-                            param={"price": curr_prc * 0.98},
-                        )
-
-                if not context["pending_order"]:
-                    return tb.Order(
-                        action="BUY",
-                        ticker=self.param["ticker"],
-                        size_type="PCTG",
-                        size=0.5,
-                        type="LIMIT",
-                        param={"price": curr_prc * 0.98},
-                    )
 
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
-        bot.strategy = Test()
+        bot.strategy = _LimitOrderDummy()
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
         bot.account = {"USDT": 1000}
         bot.run()
@@ -308,8 +309,10 @@ class TestBacktestFutureStrategy:
         bot.account = MarginAccount.create({"USDT": 1_000})
         bot.run()
 
-        assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
+        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
     def test_liquidation(self, snapshot):
         bot = tb.Bot(
@@ -324,5 +327,48 @@ class TestBacktestFutureStrategy:
         bot.account = MarginAccount.create({"USDT": 1_000})
         bot.run()
 
-        assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
+        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
+
+    def test_limit_order(self, snapshot):
+        class Test(_LimitOrderDummy):
+            @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
+            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+                curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
+                for order in context["pending_order"]:
+                    if order.type is Order.Type.LIMIT and order.action is Order.Action.OPEN_SHORT and order.param["price"] > curr_prc * 1.03:
+                        order.status = Order.Status.CANCELED
+                        return tb.Order(
+                            action="OPEN_SHORT",
+                            ticker=self.param["ticker"],
+                            size_type="PCTG",
+                            size=0.5,
+                            type="LIMIT",
+                            param={"price": curr_prc * 1.02},
+                        )
+
+                if not context["pending_order"]:
+                    return tb.Order(
+                        action="OPEN_SHORT",
+                        ticker=self.param["ticker"],
+                        size_type="PCTG",
+                        size=0.5,
+                        type="LIMIT",
+                        param={"price": curr_prc * 1.02},
+                    )
+        
+        bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
+        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+        bot.strategy = Test()
+        bot.exchange = tb.exchange.FakeFutureExchange(commission=0.001, leverage=10)
+        bot.account = tb.MarginAccount.create({"USDT": 1000})
+        bot.run()
+
+        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
+        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
+
+
