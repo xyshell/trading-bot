@@ -949,7 +949,7 @@ class TestCCXTExchange:
 
         exchange.strategy = MagicMock()
         exchange.strategy.pending_order = [order]
-        exchange.strategy.order_history = {}
+        exchange.strategy.order_history = []
         order.status = Order.Status.CANCELED
         now = pd.Timestamp("2024-01-01 00:00:00")
 
@@ -960,7 +960,7 @@ class TestCCXTExchange:
 
         exchange.update_orders(now=now, orders=[order])
         assert order not in exchange.strategy.pending_order
-        assert order in exchange.strategy.order_history.values()
+        assert order in [order for _, order in exchange.strategy.order_history]
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_pending2canceled_by_me(self, mock_client):
@@ -980,7 +980,7 @@ class TestCCXTExchange:
         )
         exchange.strategy = MagicMock()
         exchange.strategy.pending_order = [order]
-        exchange.strategy.order_history = {}
+        exchange.strategy.order_history = []
 
         now = pd.Timestamp("2024-01-01 00:00:00")
         exchange.execute(now=now, order=order)
@@ -991,7 +991,7 @@ class TestCCXTExchange:
         exchange.update_orders(now=now, orders=[order])
         assert order.status is Order.Status.CANCELED
         assert order not in exchange.strategy.pending_order
-        assert order in exchange.strategy.order_history.values()
+        assert order in [order for _, order in exchange.strategy.order_history]
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_new2rejected(self, mock_client):
@@ -1012,7 +1012,7 @@ class TestCCXTExchange:
             status=Order.Status.NEW,
         )
         exchange.strategy.pending_order = [order]
-        exchange.strategy.order_history = {}
+        exchange.strategy.order_history = []
 
         exchange.execute(now=now, order=order)
         mock_client.create_order.assert_called_once()
@@ -1022,7 +1022,7 @@ class TestCCXTExchange:
         exchange.update_orders(now=now, orders=[order])
         assert order.status is Order.Status.REJECTED
         assert order not in exchange.strategy.pending_order
-        assert order in exchange.strategy.order_history.values()
+        assert order in [order for _, order in exchange.strategy.order_history]
         mock_client.fetch_order_status.assert_not_called()
 
     # def test_create_order_market(self):

@@ -33,14 +33,16 @@ class Reporter:
         position_report = strategy.report["position"] if "position" in strategy.report else Reporter.get_position_report(strategy)
         if position_report.empty:
             return pd.DataFrame()
-        cash_component = (
-            position_report.loc[position_report["market_val"].isna(), "qty"].groupby(["timestamp", "ticker"]).sum().unstack()
-        )
-        asset_component = (
-            position_report.loc[position_report["market_val"].notna(), "market_val"].groupby(["timestamp", "ticker"]).sum().unstack()
-        )
-        portfolio_report = pd.concat([cash_component, asset_component], axis=1).fillna(0.0)
-        portfolio_report.insert(0, "nav", portfolio_report.sum(axis=1))
+        # cash_component = (
+        #     position_report.loc[position_report["market_val"].isna(), "qty"].groupby(["timestamp", "ticker"]).sum().unstack()
+        # )  # should be unnecessary after defaulting market_prc = 1.0
+        if "margin" in position_report.columns:
+            nav = position_report["margin"].apply(pd.Series)[1].fillna(position_report["market_val"])
+            nav *= np.where(position_report['qty'] >= 0, 1, -1)
+        else:
+            nav = position_report["market_val"]
+        portfolio_report = nav.groupby(["timestamp", "ticker"]).sum().unstack().fillna(0.0)
+        portfolio_report.insert(0, "nav", portfolio_report.sum(axis=1).abs())
         return portfolio_report
 
     @staticmethod
@@ -66,9 +68,10 @@ class Reporter:
     def get_order_report(strategy: Strategy) -> pd.DataFrame:
         if not strategy.order_history:
             return pd.DataFrame(columns=Order.model_fields)
-        order_report = pd.concat(
-            {timestamp: pd.Series(order.model_dump(mode="json")) for timestamp, order in strategy.order_history.items()}
-        ).unstack()
+
+        order_report = pd.DataFrame(
+            [{"timestamp": timestamp, **order.model_dump(mode="json")} for timestamp, order in strategy.order_history]
+        ).set_index("timestamp")
         return order_report
 
     @staticmethod

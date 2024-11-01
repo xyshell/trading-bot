@@ -36,9 +36,9 @@ def test_sub():
     account -= Position(ticker="BTC", qty=0.02, entry_prc=65432.1)
     assert account["BTC"].qty == -0.015
     assert account["BTC"].entry_prc == 65432.1
-    assert not account.all_long()
+    assert not account.all_sufficient()
 
 
-def test_all_long():
+def test_all_sufficient():
     account = Account([Position(ticker="BTC", qty=0.01, entry_prc=12345.6), Position(ticker="USDT", qty=1000)])
-    assert account.all_long()
+    assert account.all_sufficient()

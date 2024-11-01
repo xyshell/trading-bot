@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from tradingbot.exchange.fake import FakeExchange
 import tradingbot.util as util
-from tradingbot.model import Account, ModeType, DatetimeType
+from tradingbot.model import Account, MarginAccount, ModeType, DatetimeType
 from tradingbot.pipeline import BacktestPipeline, LivePipeline
 from tradingbot.data.core import Data, DataManager
 from tradingbot.strategy import Strategy
@@ -102,12 +102,12 @@ class Bot:
         self._exchange = exchange
 
     @property
-    def account(self) -> Account:
+    def account(self) -> Account | MarginAccount:
         return self._account
 
     @account.setter
     @util.validate
-    def account(self, wealth: dict | Account) -> Account:
+    def account(self, wealth: dict | Account | MarginAccount):
         self._account = Account.create(wealth) if isinstance(wealth, dict) else wealth
 
     def run(self, plot: bool | dict = False, **kwargs) -> None:

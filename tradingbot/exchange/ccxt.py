@@ -41,7 +41,7 @@ class CCXTExchange(Exchange):
 
         for order in orders:
             if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:
-                self.strategy.order_history[now] = order
+                self.strategy.order_history.append((now, order))
                 if order in self.strategy.pending_order:
                     self.strategy.pending_order.remove(order)
             if order.id_ is None:
@@ -69,7 +69,7 @@ class CCXTExchange(Exchange):
                     )
                     trans = Transaction(
                         ticker=order.ticker,
-                        prc=order.param["price"],
+                        prc=order_info["average"],
                         from_=(from_ticker, from_qty),
                         to_=(to_ticker, to_qty),
                         tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
@@ -81,13 +81,13 @@ class CCXTExchange(Exchange):
                     account -= from_pos
                     self.strategy.account = account
                     self.strategy.transaction_history.append(trans)
-                    self.strategy.order_history[pd.Timestamp(order_info["datetime"])] = order
+                    self.strategy.order_history.append((pd.Timestamp(order_info["datetime"]), order))
                     if order in self.strategy.pending_order:
                         self.strategy.pending_order.remove(order)
                 case "canceled":
                     order.status = Order.Status.CANCELED
                     self.strategy.logger.info(f"Order canceled: {order}")
-                    self.strategy.order_history[now] = order
+                    self.strategy.order_history.append((now, order))
                     if order in self.strategy.pending_order:
                         self.strategy.pending_order.remove(order)
 

@@ -12,6 +12,7 @@ import pandas as pd
 import requests
 from retry import retry
 
+from tradingbot.model import MarginPosition
 import tradingbot.util as util
 from tradingbot.data.core import Data
 from tradingbot.strategy import Strategy
@@ -44,13 +45,17 @@ class Pipeline(abc.ABC):
         logger.debug(f"Data Update: took {toc - tic:.2f} seconds")
 
     @staticmethod
-    def _update_position(strategy: Strategy):
+    def _mark_to_market(strategy: Strategy):
         # update market price for position
         for pos in strategy.account.position:
             for ticker, candle in strategy.data.ticker2candle.items():
+                # update market price
                 if pos.ticker in ticker and pos.ticker == util.get_base_ticker(ticker):
                     pos.market_prc = candle["close"].iloc[-1]
-
+                # check liquidation
+                if isinstance(pos, MarginPosition):
+                    if pos.margin[1] < 0:
+                        pos.clear()
 
 class BacktestPipeline(Pipeline):
     @util.validate
@@ -130,22 +135,19 @@ class BacktestPipeline(Pipeline):
                 # update status of pending orders
                 strategy.exchange.update_orders(now, strategy.pending_order)
 
-                # update position
-                self._update_position(strategy)
-
                 # call strategy
+                self._mark_to_market(strategy)
                 new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
                 # execute orders
+                self._mark_to_market(strategy)
                 orders = util.to_list(new_orders) + strategy.pending_order
                 for order in orders:
                     order = strategy.exchange.execute(now, order)
                 strategy.exchange.update_orders(now, orders)
 
-                # update position after execution
-                self._update_position(strategy)
-
                 # archive position
+                self._mark_to_market(strategy)
                 strategy.account_history[now] = copy.deepcopy(strategy.account)
 
             toc = time.time()
@@ -212,22 +214,19 @@ class LivePipeline(Pipeline):
                     # update status of pending orders
                     strategy.exchange.update_orders(now, strategy.pending_order)
 
-                    # update position
-                    self._update_position(strategy)
-
                     # call strategy
+                    self._mark_to_market(strategy)
                     new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
                     # execute orders
+                    self._mark_to_market(strategy)
                     orders = util.to_list(new_orders) + strategy.pending_order
                     for order in orders:
                         order = strategy.exchange.execute(now, order)
                     strategy.exchange.update_orders(now, orders)
 
-                    # update position after execution
-                    self._update_position(strategy)
-
                     # archive position
+                    self._mark_to_market(strategy)
                     strategy.account_history[now] = copy.deepcopy(strategy.account)
 
                 toc = time.time()
