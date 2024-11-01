@@ -1,7 +1,6 @@
 import logging
 from typing import Sequence
 
-import pandas as pd
 
 import tradingbot as tb
 from tradingbot.model import MarginAccount, Order
