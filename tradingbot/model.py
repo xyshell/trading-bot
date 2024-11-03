@@ -436,7 +436,8 @@ class Order(BaseModel):
             return util.get_quote_ticker(self.ticker)
         raise NotImplementedError
 
-    def cancel(self, exchange) -> typing.Self:
+    def cancel(self, exchange, now: pd.Timestamp = pd.NaT) -> typing.Self:
         self.status = Order.Status.CANCELED
-        self = exchange.execute(now=pd.NaT, order=self)
+        self = exchange.execute(now=now, order=self)
+        exchange.update_orders(now=now, orders=[self])
         return self

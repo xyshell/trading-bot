@@ -1,5 +1,6 @@
 import abc
 import copy
+import random
 import time
 import concurrent.futures
 import logging
@@ -12,7 +13,7 @@ import pandas as pd
 import requests
 from retry import retry
 
-from tradingbot.model import MarginPosition
+from tradingbot.model import MarginPosition, Order
 import tradingbot.util as util
 from tradingbot.data.core import Data
 from tradingbot.strategy import Strategy
@@ -80,6 +81,27 @@ class BacktestPipeline(Pipeline):
 
         return now_generator
 
+    def _prep(self, now: pd.Timestamp, strategy: Strategy):
+        # update data
+        self._update_data(now, strategy.data)
+        # execute pending orders
+        self._mark_to_market(strategy)
+        for order in strategy.pending_order:
+            strategy.exchange.execute(now, order)
+        strategy.exchange.update_orders(now, strategy.pending_order)
+        self._mark_to_market(strategy)
+
+    def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
+        # execute new orders + pending orders
+        self._mark_to_market(strategy)
+        orders = util.to_list(new_orders) + strategy.pending_order
+        for order in orders:
+            order = strategy.exchange.execute(now, order)
+        strategy.exchange.update_orders(now, orders)
+        # archive position
+        self._mark_to_market(strategy)
+        strategy.account_history[now] = copy.deepcopy(strategy.account)
+
     def run(self, strategy: Strategy, plot: bool | dict = False, preload: bool = False, **kwargs):
         """
         Args:
@@ -129,26 +151,16 @@ class BacktestPipeline(Pipeline):
             if any(triggered):
                 strategy.logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
-                # prepare info
-                self._update_data(now, strategy.data)
+                # prepare
+                self._prep(now, strategy)
 
-                # update status of pending orders
-                strategy.exchange.update_orders(now, strategy.pending_order)
+                # call next
+                new_orders = strategy.next(
+                    context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order}
+                )
 
-                # call strategy
-                self._mark_to_market(strategy)
-                new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
-
-                # execute orders
-                self._mark_to_market(strategy)
-                orders = util.to_list(new_orders) + strategy.pending_order
-                for order in orders:
-                    order = strategy.exchange.execute(now, order)
-                strategy.exchange.update_orders(now, orders)
-
-                # archive position
-                self._mark_to_market(strategy)
-                strategy.account_history[now] = copy.deepcopy(strategy.account)
+                # post-process
+                self._post(now, strategy, new_orders)
 
             toc = time.time()
             logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
@@ -183,6 +195,43 @@ class LivePipeline(Pipeline):
 
         return now_generator
 
+    def _prep(self, now: pd.Timestamp, strategy: Strategy) -> bool:
+        # update data
+        n = 3
+        while n > 0:
+            try:
+                self._update_data(now, strategy.data)
+            except Exception as e:
+                strategy.logger.error(f"Failed to update data. due to {e!r}. Retrying {n=}...")
+                n -= 1
+                time.sleep(random.randint(1, 5))
+            else:
+                break
+        else:
+            strategy.logger.error("Failed to update data after retries. Delaying to next run.")
+            msg = traceback.format_exc()
+            strategy.logger.debug(f"{msg}")
+            return False
+
+        # update status of pending orders
+        strategy.exchange.update_orders(now, strategy.pending_order)
+        self._mark_to_market(strategy)
+
+        return True
+
+    def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
+        # execute orders
+        self._mark_to_market(strategy)
+        orders = util.to_list(new_orders) + strategy.pending_order
+        for order in orders:
+            order = strategy.exchange.execute(now, order)
+        strategy.exchange.update_orders(now, orders)
+        self._mark_to_market(strategy)
+
+        # archive position
+        strategy.account_history[now] = copy.deepcopy(strategy.account)
+
+
     def run(self, strategy: Strategy, **kwargs):
         strategy.logger = util.get_strategy_logger(str(strategy))
         strategy.start()
@@ -202,32 +251,15 @@ class LivePipeline(Pipeline):
                 if any(triggered):
                     strategy.logger.debug(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
 
-                    try:
-                        # prepare info
-                        self._update_data(now, strategy.data)
-                    except Exception as e:
-                        strategy.logger.error(f"Failed to update data. due to {e!r}. Delaying to next run.")
-                        msg = traceback.format_exc()
-                        strategy.logger.debug(f"{msg}")
+                    # prepare
+                    if not self._prep(now, strategy): 
                         continue
 
-                    # update status of pending orders
-                    strategy.exchange.update_orders(now, strategy.pending_order)
-
-                    # call strategy
-                    self._mark_to_market(strategy)
+                    # call next
                     new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
 
-                    # execute orders
-                    self._mark_to_market(strategy)
-                    orders = util.to_list(new_orders) + strategy.pending_order
-                    for order in orders:
-                        order = strategy.exchange.execute(now, order)
-                    strategy.exchange.update_orders(now, orders)
-
-                    # archive position
-                    self._mark_to_market(strategy)
-                    strategy.account_history[now] = copy.deepcopy(strategy.account)
+                    # post-process
+                    self._post(now, strategy, new_orders)
 
                 toc = time.time()
                 logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
