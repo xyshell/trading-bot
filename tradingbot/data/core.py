@@ -108,7 +108,7 @@ class Data:
 
     def update(self, now: pd.Timestamp, **kwargs) -> None:
         if self.mode == "backtest" and self._preload:
-            df = self._cached.loc[self._cached[self.pit] <= now].tail(self.load_len)
+            df = self._cached.loc[self._cached[self.pit] <= now].tail(self.load_len).reset_index(drop=True)
         elif self.mode == "backtest":
             df = self.load(now, **kwargs)
         else:  # live

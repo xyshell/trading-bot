@@ -131,6 +131,10 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
         self._commission = commission
         self._leverage = leverage
 
+    @property
+    def leverage(self) -> int:
+        return self._leverage
+
     def execute(self, now: pd.Timestamp, order: Order) -> Order:
         """
         Args:
@@ -186,7 +190,7 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
                 raise NotImplementedError
 
             case Order.SizeType.QUOTE if to_ticker == quote_ticker:
-                to_qty = order.size / self._leverage
+                to_qty = order.size
                 _, from_qty = util.convert((to_ticker, to_qty * self._leverage), order.ticker, exec_prc)
                 from_qty *= -1 if order.action is Order.Action.CLOSE_SHORT else 1
 
