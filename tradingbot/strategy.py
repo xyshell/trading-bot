@@ -63,21 +63,44 @@ class Strategy(abc.ABC):
             candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
-        buy_sell = order_report["action"].to_frame()
+        buy_sell = order_report[["action", "param"]].copy()
+        buy_sell["exec_prc"] = buy_sell["param"].apply(lambda x: x.get("price"))
         buy_sell["one"] = 1
-        buy_sell_clean = buy_sell.pivot(columns="action", values="one").resample(sample_freq, closed="left").sum()
-        buy_sell_clean = buy_sell_clean.loc[buy_sell_clean.index.isin(buy_sell.index)]
-        df = pd.concat([df, buy_sell_clean], axis=1)
+        buy_sell_point = buy_sell.groupby(["timestamp", "action"])[["one"]].sum().unstack(level="action").resample(sample_freq, closed="left").sum()
+        buy_sell_point = buy_sell_point.loc[buy_sell_point.index.isin(buy_sell.index)]
+        buy_sell_point.columns = buy_sell_point.columns.droplevel(0)
+        buy_sell_prc = buy_sell.groupby(["timestamp", "action"])[["exec_prc"]].mean().unstack(level="action").resample(sample_freq, closed="left").first()
+        buy_sell_prc = buy_sell_prc.loc[buy_sell_prc.index.isin(buy_sell.index)].add_suffix("_prc")
+        buy_sell_prc.columns = buy_sell_prc.columns.droplevel(0)
+        df = pd.concat([df, buy_sell_point, buy_sell_prc], axis=1)
         buy_col = {Order.Action.BUY.name, Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name}
         sell_col = {Order.Action.SELL.name, Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name}
-        df["BUY"] = np.where(df[list(buy_col & set(df.columns))].any(axis=1), df["close"], np.nan)
-        df["SELL"] = np.where(df[list(sell_col & set(df.columns))].any(axis=1), df["close"], np.nan)
+        buy_plus_col = {Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name}
+        sell_plus_col = {Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name}
+        df["BUY"] = np.where(
+            df[list(buy_col & set(df.columns))].any(axis=1), 
+            df[(pd.Index(buy_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
+            np.nan
+        )
+        df["SELL"] = np.where(
+            df[list(sell_col & set(df.columns))].any(axis=1), 
+            df[(pd.Index(sell_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
+            np.nan
+        )
         if Order.Action.OPEN_LONG.name in df.columns and Order.Action.OPEN_SHORT.name in df.columns:
-            df["BUY_PLUS"] = np.where(df[[Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name]].sum(axis=1) == 2, df["close"], np.nan)
+            df["BUY_PLUS"] = np.where(
+                df[list(buy_plus_col)].sum(axis=1) == 2, 
+                df[(pd.Index(buy_plus_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
+                np.nan
+            )
         else:
             df["BUY_PLUS"] = np.nan
         if Order.Action.CLOSE_LONG.name in df.columns and Order.Action.CLOSE_SHORT.name in df.columns:
-            df["SELL_PLUS"] = np.where(df[[Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name]].sum(axis=1) == 2, df["close"], np.nan)
+            df["SELL_PLUS"] = np.where(
+                df[list(sell_plus_col)].sum(axis=1) == 2, 
+                df[(pd.Index(sell_plus_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
+                np.nan
+            )
         else:
             df["SELL_PLUS"] = np.nan
         if "volume" not in df.columns and "base_volume" in df.columns:
