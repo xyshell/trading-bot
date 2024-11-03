@@ -97,7 +97,7 @@ class _LimitOrderDummy(tb.Strategy):
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
         for order in context["pending_order"]:
             if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
-                order.status = Order.Status.CANCELED
+                order.cancel(self.exchange, now=context["now"])
                 return tb.Order(
                     action="BUY",
                     ticker=self.param["ticker"],
@@ -339,7 +339,7 @@ class TestBacktestFutureStrategy:
                 curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
                 for order in context["pending_order"]:
                     if order.type is Order.Type.LIMIT and order.action is Order.Action.OPEN_SHORT and order.param["price"] > curr_prc * 1.03:
-                        order.status = Order.Status.CANCELED
+                        order.cancel(self.exchange, now=context["now"])
                         return tb.Order(
                             action="OPEN_SHORT",
                             ticker=self.param["ticker"],

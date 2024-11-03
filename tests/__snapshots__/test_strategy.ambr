@@ -12,16 +12,16 @@
   '1486e50dbc7c814791a53a758306c1bbf9f8a165c295e47d1cb34a5ac1941c33'
 # ---
 # name: TestBacktestFutureStrategy.test_limit_order
-  '18521e8a08a0f909f7d45143df62264f75a7524d5c76ee4d6e2e168fe423dbf3'
+  '0468d636981f961e5cd76964da23d2e781d6f08777277bf6820af09ebf9407db'
 # ---
 # name: TestBacktestFutureStrategy.test_limit_order.1
-  '8445a2a79f7aa47b2dec0800243ad1b831f1585cd8da245dcdffbe0d2dc3c523'
+  'db9cc3fffdec72a482a685d1965eb4b7b431fd1caf0daa6ed037946a97d1c511'
 # ---
 # name: TestBacktestFutureStrategy.test_limit_order.2
-  'c65cb7d07ed1d36c9802f38dd16ac7eac9af86ac9dd4fa6739dec7952f30f529'
+  '8ee2c1255837c642ebf388c75a8ff7fa244b8ac3434af256a7c74f08231892df'
 # ---
 # name: TestBacktestFutureStrategy.test_limit_order.3
-  '466c54fe55ed688899100391ffee1eedd90f9afc8b02c7688c7b39528d8b0eb4'
+  '09a25e0a38078508e29cd59ee628ba5a01382a518b9e80673097a2fe2b661045'
 # ---
 # name: TestBacktestFutureStrategy.test_liquidation
   'e5cd99e0ae8e526d44538cb8194e76a62f02e09658e6998249880f2a23c66dbe'
@@ -48,16 +48,16 @@
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
 # name: TestBacktestSpotStrategy.test_limit_order
-  'cc6020614d6d8dd9dae66ba3cc29c9cfa300dafe0eb064a0044c233bca088b3c'
+  '6b556aeac3a9c782668b9ba84dc574ce29bd65bb766f74b89bf89d029ae79399'
 # ---
 # name: TestBacktestSpotStrategy.test_limit_order.1
-  '1b1084d0f8d9bfad28bf27366b344bc52f5ba672515a2406c5880c6abd206645'
+  '7b0e5fcd6fcecf33ac394bc18d981c8fb7470ec66e3ced3c282421e65acb83d6'
 # ---
 # name: TestBacktestSpotStrategy.test_limit_order.2
-  '6aed53345166e634f2ed33e99c9a285f791d09f32200dcf8430a9f041edac9c9'
+  '6e20cf0b59ebbbfea59698200fab9f18083f7b903dd80cbd587956cfb6473a3c'
 # ---
 # name: TestBacktestSpotStrategy.test_limit_order.3
-  'b9495495cb3e3bbe250a1482f3f42f80e953136edbb43283deb025498dcb22ea'
+  '480fe12854b0f62375c54feab550c0dab03851c79c6311767c7b3055d3fdfa48'
 # ---
 # name: TestBacktestSpotStrategy.test_msft
   'a833e74e1e47d2919a8efef2cab710b9030a901b22819028e3a24d1dbd0b8bf1'
