@@ -176,7 +176,7 @@ class Account:
         self._position = {pos.ticker: pos for pos in position}
 
     def __repr__(self) -> str:
-        wealth = {pos.ticker: pos.qty for pos in self.position}
+        wealth = {pos.ticker: f"{pos.qty:.4f}" for pos in self.position}
         return f"Account({wealth})"
 
     @classmethod
@@ -415,7 +415,7 @@ class Order(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     def __str__(self):
-        return f"Order(id={self.id_}, {self.action.name}, {self.ticker}, {self.size_type.name}, {self.size}, {self.type.name}, {self.param}, {self.status.name})"
+        return f"Order(id={self.id_}, {self.action.name}, {self.ticker}, {self.size_type.name}, {self.size:.4f}, {self.type.name}, {self.param}, {self.status.name})"
 
     def model_post_init(self, __context):
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")

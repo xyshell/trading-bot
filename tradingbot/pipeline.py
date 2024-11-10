@@ -202,7 +202,7 @@ class LivePipeline(Pipeline):
             try:
                 self._update_data(now, strategy.data)
             except Exception as e:
-                strategy.logger.error(f"Failed to update data. due to {e!r}. Retrying {n=}...")
+                strategy.logger.debug(f"Failed to update data. due to {e!r}. Retrying {n=}...")
                 n -= 1
                 time.sleep(random.randint(1, 5))
             else:

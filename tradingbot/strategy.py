@@ -124,8 +124,8 @@ class Strategy(abc.ABC):
             xrotation=0,
             datetime_format="%y/%m/%d %H:%M",
             addplot=[
-                mpf.make_addplot(df["nav"], panel=0, alpha=1.0, color="b", label="NAV"),
-                *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=False, label=col) for col in port_report.columns if col != "nav"],
+                mpf.make_addplot(df["nav"], panel=0, alpha=1.0, color="b", label="NAV", secondary_y=False),
+                *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=True, label=col) for col in port_report.columns if col != "nav"],
                 mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#4db344", secondary_y=False, label="BUY"),
                 mpf.make_addplot(df["SELL"], panel=1, type="scatter", markersize=50, marker="v", color="#fa5f7e", secondary_y=False, label="SELL"),
                 mpf.make_addplot(df["BUY_PLUS"], panel=1, type="scatter", markersize=50, marker=10, color="#4db344", secondary_y=False, label=""),
