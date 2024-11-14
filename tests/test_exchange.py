@@ -1032,7 +1032,17 @@ class TestCCXTExchange:
 
     # def test_create_order_limit(self):
     #     exchange = CCXTExchange()
-    #     order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
+        
+    #     # # spot
+    #     # order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
+    #     # assert order
+        
+    #     # perpetual future
+    #     symbol = "BTC/USDT:USDT"
+    #     exchange.client.set_leverage(10, symbol, params={"mgnMode": "isolated", "posSide": "long"})
+    #     # ccxt.base.errors.ExchangeError: okx {"code":"59101","data":[],"msg":"Leverage can't be modified. Please cancel all pending isolated margin orders before adjusting the leverage."}
+    #     order = exchange.client.create_order(symbol=symbol, type="limit", side="buy", amount=0.01, price=30_100, 
+    #                                          params={"posSide": "long", "marginMode": "isolated", "hedged": False})
     #     assert order
 
     # def test_fetch_order(self):

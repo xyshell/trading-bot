@@ -7,7 +7,7 @@ from retry import retry
 
 import tradingbot as tb
 import tradingbot.util as util
-from tradingbot.exchange.core import Exchange
+from tradingbot.exchange.core import Exchange, FutureExchange
 from tradingbot.model import Order, Transaction
 
 
@@ -140,6 +140,7 @@ class CCXTExchange(Exchange):
             order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
             self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e}")
+            # TODO: execute what's left
             order.status = Order.Status.REJECTED
             return order
         except ccxt.errors.InvalidOrder as e:
@@ -155,3 +156,7 @@ class CCXTExchange(Exchange):
         order.status = Order.Status.PENDING
         self.strategy.logger.info(f"Order posted: {order}")
         return order
+
+
+class CCXTFutureExchange(CCXTExchange, FutureExchange):
+    pass
