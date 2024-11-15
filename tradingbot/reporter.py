@@ -124,7 +124,8 @@ class Reporter:
         bmk_vol_ann = _bmk_hist_ret.std() * _N**0.5
         # kpi
         _ptf_hist_ret_mean = _ptf_hist_ret.mean()
-        sharpe = _ptf_hist_ret_mean * _N / ptf_vol_ann
+        ptf_sharpe = _ptf_hist_ret_mean * _N / ptf_vol_ann
+        bmk_sharpe = _bmk_hist_ret.mean() * _N / bmk_vol_ann
         _act_hist_ret = _ptf_hist_ret - _bmk_hist_ret
         _act_vol_ann = _act_hist_ret.std() * _N**0.5
         ir = _act_hist_ret.mean() * _N / _act_vol_ann
@@ -180,7 +181,7 @@ class Reporter:
                 "Return Ann vs Benchmark": f"{stats_report['ptf_ret_ann']:.2%} vs {stats_report['bmk_ret_ann']:.2%}",
                 "Vol Ann vs Benchmark": f"{stats_report['ptf_vol_ann']:.2%} vs {stats_report['bmk_vol_ann']:.2%}",
                 "Max Drawdown": f"{stats_report['max_drawdown']:.2%} ({stats_report['max_drawdown_period']})",
-                "Sharpe": f"{stats_report['sharpe']:.2f}",
+                "Sharpe": f"{stats_report['ptf_sharpe']:.2f} vs {stats_report['bmk_sharpe']:.2f}",
                 "Sortino": f"{stats_report['sortino']:.2f}",
                 "Calmar": f"{stats_report['calmar']:.2f}",
                 "IR": f"{stats_report['ir']:.2f}",

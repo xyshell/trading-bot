@@ -36,13 +36,13 @@
   'af0c05b3cdd9c517e985bb74447a6ce88acb850b1db2dabfc59d73b7df37b58f'
 # ---
 # name: TestBacktestSpotStrategy.test_btcusdt
-  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
+  '0072ec44ef123c0eee746cb567166648a35628f87cd4e061d2bea018d80c2f0d'
 # ---
 # name: TestBacktestSpotStrategy.test_btcusdt.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
 # name: TestBacktestSpotStrategy.test_closed_only
-  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
+  '0072ec44ef123c0eee746cb567166648a35628f87cd4e061d2bea018d80c2f0d'
 # ---
 # name: TestBacktestSpotStrategy.test_closed_only.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
@@ -60,22 +60,22 @@
   '480fe12854b0f62375c54feab550c0dab03851c79c6311767c7b3055d3fdfa48'
 # ---
 # name: TestBacktestSpotStrategy.test_msft
-  'a833e74e1e47d2919a8efef2cab710b9030a901b22819028e3a24d1dbd0b8bf1'
+  'eb5bee554a56b195b9f9397a133f1b378b35b872194aa067b1ffe9554d6099f0'
 # ---
 # name: TestBacktestSpotStrategy.test_msft.1
   '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
 # ---
 # name: TestBacktestSpotStrategy.test_optimize
-  'e7909ba321a8a12c884345a0b9fe0d0b5095d9ff552ef2f067c8f786984d3100'
+  'e6bbb11782e5a5b0479e63429446984434877a1e7d3a85e875da20b237da9a43'
 # ---
 # name: TestBacktestSpotStrategy.test_optimize.1
-  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
+  '0072ec44ef123c0eee746cb567166648a35628f87cd4e061d2bea018d80c2f0d'
 # ---
 # name: TestBacktestSpotStrategy.test_optimize.2
-  'db96ff54fa80a09191fb8c5e067eed6f09ce9a29f60f62b22b7659ffa0ab5ad2'
+  'be2a3ac91e2b8e85c273051271a46db8153caaa35fe544ed5125869c2432d691'
 # ---
 # name: TestBacktestSpotStrategy.test_preload
-  'b4bfc62bbc96c22f8ae30ed1536830b83815552acf5271cd0d32e6d06a5b1e57'
+  '0072ec44ef123c0eee746cb567166648a35628f87cd4e061d2bea018d80c2f0d'
 # ---
 # name: TestBacktestSpotStrategy.test_preload.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
