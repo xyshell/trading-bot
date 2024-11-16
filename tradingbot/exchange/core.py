@@ -3,7 +3,7 @@ import abc
 import pandas as pd
 
 from tradingbot.strategy import Strategy
-from tradingbot.model import Order
+from tradingbot.model import Account, Order
 
 
 class Exchange:
@@ -21,6 +21,9 @@ class Exchange:
 
     def update_orders(self, now: pd.Timestamp, orders: list[Order]):
         pass
+
+    def reflect_account(self, account: Account, ticker: str) -> Account:
+        return account
 
 
 class FutureExchange(Exchange):

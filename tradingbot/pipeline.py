@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 from retry import retry
 
+from tradingbot.exchange.fake import FakeExchange
 from tradingbot.model import MarginPosition, Order
 import tradingbot.util as util
 from tradingbot.data.core import Data
@@ -184,9 +185,10 @@ class BacktestPipeline(Pipeline):
 
 
 class LivePipeline(Pipeline):
-    def __init__(self, now_factory: Callable[[], pd.Timestamp], refresh_rate: float = 0.0, **kwargs):
+    def __init__(self, now_factory: Callable[[], pd.Timestamp], refresh_rate: float = 0.0, _reflect_account: bool = True, **kwargs):
         super().__init__(now_factory)
         self._refresh_rate = refresh_rate
+        self._reflect_account = _reflect_account
 
     def _get_now_generator(self):
         def now_generator():
@@ -217,6 +219,10 @@ class LivePipeline(Pipeline):
         strategy.exchange.update_orders(now, strategy.pending_order)
         self._mark_to_market(strategy)
 
+        # reflect account
+        if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
+            strategy.account = strategy.exchange.reflect_account(strategy.account, ticker)
+
         return True
 
     def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
@@ -234,6 +240,12 @@ class LivePipeline(Pipeline):
 
     def run(self, strategy: Strategy, **kwargs):
         strategy.logger = util.get_strategy_logger(str(strategy))
+
+        # reflect account
+        if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
+            strategy.account = strategy.exchange.reflect_account(strategy.account, ticker)
+
+        # start strategy
         strategy.start()
 
         now_generator = self._get_now_generator()

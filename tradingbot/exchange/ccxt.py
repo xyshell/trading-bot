@@ -8,7 +8,7 @@ from retry import retry
 import tradingbot as tb
 import tradingbot.util as util
 from tradingbot.exchange.core import Exchange, FutureExchange
-from tradingbot.model import Order, Transaction
+from tradingbot.model import Account, Order, Position, Transaction
 
 
 class CCXTExchange(Exchange):
@@ -140,7 +140,6 @@ class CCXTExchange(Exchange):
             order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
             self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e}")
-            # TODO: execute what's left
             order.status = Order.Status.REJECTED
             return order
         except ccxt.errors.InvalidOrder as e:
@@ -157,6 +156,27 @@ class CCXTExchange(Exchange):
         self.strategy.logger.info(f"Order posted: {order}")
         return order
 
+    def reflect_account(self, account: Account, ticker: str) -> Account:
+        """
+        Args:
+            ticker (str): e.g. "USDT/BTC"
+        Returns:
+            Account
+        """
+        account = copy.deepcopy(account)
+        balance = self.client.fetch_balance()
+        quote_ticker, base_ticker = util.get_quote_ticker(ticker), util.get_base_ticker(ticker)
+        base_info = balance.get(base_ticker, {})
+
+        if base_total := base_info.get("total", 0):
+            prc = self.get_price(ticker)
+            base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_ticker), {})
+            base_pos = Position(ticker=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc)), market_prc_=prc)
+            quote_pos = Position(ticker=quote_ticker, qty=max(account[quote_ticker].qty - base_total * prc, 0.0))
+            account[base_ticker] = base_pos
+            account[quote_ticker] = quote_pos
+
+        return account
 
 class CCXTFutureExchange(CCXTExchange, FutureExchange):
     pass

@@ -27,32 +27,42 @@ class Bot:
     def __init__(
         self,
         mode: ModeType,
+        now_factory: Callable[[], pd.Timestamp] = util.utc_now_factory,
+        *_,
+        # backtest mode
         start: DatetimeType | None = None,
         end: DatetimeType | None = None,
-        refresh_rate: float = 0.0,
-        now_factory: Callable[[], pd.Timestamp] = util.utc_now_factory,
         preload: bool = False,
+        # live mode
+        refresh_rate: float = 0.0,
+        _reflect_account: bool = True,
         **kwargs,
     ):
         """
         Args:
             mode (str): "backtest" or "live"
-            start (str | datetime.datetime | pd.Timestamp, optional): start time. backtest mode only
-            end (str | datetime.datetime | pd.Timestamp, optional): end time. backtest mode only
-            refresh_rate (float, optional): refresh rate in seconds. live mode only
             now_factory (Callable, optional): function to get current time. Defaults to pd.Timestamp.utcnow().tz_localize(None).
-            preload (bool, optional): when backtest, whether to preload data to speed up 
+            
+            # backtest mode
+            preload (bool, optional): whether to preload data to speed up in backtest mode 
+            start (str | datetime.datetime | pd.Timestamp, optional): backtest start time
+            end (str | datetime.datetime | pd.Timestamp, optional): backtest end time
+
+            # live mode
+            refresh_rate (float, optional): refresh rate in seconds.
+            _reflect_account (bool, optional): whether to reflect from actual account in live mode
         """
         self._mode = mode
         self._pipeline = (
             BacktestPipeline(now_factory, start=start, end=end, **kwargs)
             if mode == "backtest"
-            else LivePipeline(now_factory, refresh_rate=refresh_rate, **kwargs)
+            else LivePipeline(now_factory, refresh_rate=refresh_rate, _reflect_account=_reflect_account, **kwargs)
         )
         self._start = start
         self._end = end
         self._now_factory = now_factory
         self._preload = preload
+        self._reflect_account = _reflect_account
 
         self._data: dict[str, Data] = {}
         self._strategy: Strategy = None

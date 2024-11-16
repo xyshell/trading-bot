@@ -196,6 +196,9 @@ class Account:
             self._position[ticker] = pos
         return self._position[ticker]
 
+    def __setitem__(self, ticker: str, pos: Position) -> None:
+        self._position[ticker] = pos
+
     def __iter__(self) -> typing.Iterator[Position]:
         return iter(self.position)
 

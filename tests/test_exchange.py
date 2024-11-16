@@ -1076,3 +1076,59 @@ class TestCCXTExchange:
     #     exchange = CCXTExchange()
     #     order = exchange.client.cancel_order("1877192719882797056", symbol="BTC/USDT")
     #     assert order
+
+    # def test_fetch_balance(self):
+    #     exchange = CCXTExchange()
+    #     balance = exchange.client.fetch_balance()
+        
+    #     balance['info']['data'][0]['totalEq']  # total equity
+    #     balance['info']['data'][0]['details'][1]  # detail by coin
+    #     {
+    #         'accAvgPx': '46416.262714480996', 
+    #         'availBal': '0.02040934245', 
+    #         'availEq': '0.02040934245', 
+    #         'borrowFroz': '', 
+    #         'cashBal': '0.02040934245', 
+    #         'ccy': 'BTC', 
+    #         'clSpotInUseAmt': '', 
+    #         'crossLiab': '', 
+    #         'disEq': '1811.6926736452192', 
+    #         'eq': '0.02040934245', 
+    #         'eqUsd': '1848.6659935155299', 
+    #         'fixedBal': '0', 
+    #         'frozenBal': '0', 
+    #         'imr': '0', 
+    #         'interest': '', 
+    #         'isoEq': '0', 
+    #         'isoLiab': '', 
+    #         'isoUpl': '0', 
+    #         'liab': '', 
+    #         'maxLoan': '', 
+    #         'maxSpotInUse': '', 
+    #         'mgnRatio': '', 
+    #         'mmr': '0', 
+    #         'notionalLever': '0', 
+    #         'openAvgPx': '74238.00254099998', 
+    #         'ordFrozen': '0', 
+    #         'rewardBal': '0', 
+    #         'smtSyncEq': '0', 
+    #         'spotBal': '0.02040934245', 
+    #         'spotCopyTradingEq': '0', 
+    #         'spotInUseAmt': '', 
+    #         'spotIsoBal': '0', 
+    #         'spotUpl': '333.51717685229113', 
+    #         'spotUplRatio': '0.2201217287598091', 
+    #         'stgyEq': '0', 
+    #         'totalPnl': '901.3405925265206', 
+    #         'totalPnlRatio': '0.9514582756733003', 
+    #         'twap': '0', 
+    #         'uTime': '1731690061466', 
+    #         'upl': '0', 
+    #         'uplLiab': ''
+    #     }
+    #     balance['timestamp'], balance['datetime']  # record time
+    #     balance['free'], balance['used'], balance['total']  # free, used, total by coin
+    #     ticker = "USDT/BTC"
+    #     coin_detail = balance.get(util.get_base_ticker(ticker))
+    #     coin_detail['free'], coin_detail['used'], coin_detail['total']
+    #     assert balance
