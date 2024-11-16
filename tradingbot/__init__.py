@@ -9,6 +9,22 @@ from .trigger import schedule
 from .reporter import Reporter
 from .database import Database
 
+
+def _print_version():
+    box_width = 100
+    version_text = f"TradingBot Version: '{__version__}'"
+
+    padding_left = (box_width - len(version_text)) // 2
+    padding_right = box_width - len(version_text) - padding_left
+
+    print("╔" + "═" * box_width + "╗")
+    # print(f"║{' ' * box_width}║")
+    print(f"║{' ' * padding_left}{version_text}{' ' * padding_right}║")
+    # print(f"║{' ' * box_width}║")
+    print("╚" + "═" * box_width + "╝")
+
+_print_version()
+
 config = Config()
 logging.config.dictConfig(config.logging)
 
