@@ -171,7 +171,7 @@ class CCXTExchange(Exchange):
         if base_total := base_info.get("total", 0):
             prc = self.get_price(ticker)
             base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_ticker), {})
-            base_pos = Position(ticker=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc)), market_prc_=prc)
+            base_pos = Position(ticker=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
             quote_pos = Position(ticker=quote_ticker, qty=max(account[quote_ticker].qty - base_total * prc, 0.0))
             account[base_ticker] = base_pos
             account[quote_ticker] = quote_pos
