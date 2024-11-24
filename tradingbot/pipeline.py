@@ -221,7 +221,7 @@ class LivePipeline(Pipeline):
 
         # reflect account
         if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
-            strategy.account = strategy.exchange.reflect_account(strategy.account, ticker)
+            strategy.account = strategy.exchange.reflect_account(strategy.init_account, ticker)
 
         return True
 
@@ -243,7 +243,7 @@ class LivePipeline(Pipeline):
 
         # reflect account
         if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
-            strategy.account = strategy.exchange.reflect_account(strategy.account, ticker)
+            strategy.account = strategy.exchange.reflect_account(strategy.init_account, ticker)
 
         # start strategy
         strategy.start()

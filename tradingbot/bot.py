@@ -129,6 +129,7 @@ class Bot:
         # set strategy
         strategy.data = self._data
         strategy.exchange = self._exchange
+        strategy.init_account = self._account
         strategy.account = self._account
         # set exchange
         self._exchange.strategy = strategy

@@ -23,7 +23,8 @@ class Strategy(abc.ABC):
         self.pending_order: list[Order] = []  # keep track of all pending orders
         self.order_history: list[tuple[pd.Timestamp, Order]] = []  # record all filled orders
         self.transaction_history: list[Transaction] = []  # record all transactions
-        self.account: Account  # keep track of all positions
+        self.init_account: Account  # initial account
+        self.account: Account  # current account
         self.account_history: dict[pd.Timestamp, list[Account]] = {}  # record all positions
         self.report: dict[str, pd.DataFrame] = {}  # save report
 
