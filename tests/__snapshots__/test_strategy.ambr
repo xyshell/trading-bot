@@ -60,10 +60,10 @@
   '480fe12854b0f62375c54feab550c0dab03851c79c6311767c7b3055d3fdfa48'
 # ---
 # name: TestBacktestSpotStrategy.test_msft
-  'eb5bee554a56b195b9f9397a133f1b378b35b872194aa067b1ffe9554d6099f0'
+  '22a40764025fc3f7ee515250e948312cfa63b6ad5fcd3ab1e21e39c70101d359'
 # ---
 # name: TestBacktestSpotStrategy.test_msft.1
-  '2ed5875faf780ea4e99640c99ad166820c82a756dabcaffe786cd153c5ea6670'
+  '341becb9e6f58b24191c96242219d7cf573756ec0245ed6506617e975291ba2f'
 # ---
 # name: TestBacktestSpotStrategy.test_optimize
   'e6bbb11782e5a5b0479e63429446984434877a1e7d3a85e875da20b237da9a43'

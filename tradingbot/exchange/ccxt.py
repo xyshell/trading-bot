@@ -1,4 +1,7 @@
 import copy
+import random
+import threading
+import time
 
 import ccxt
 import pandas as pd
@@ -36,60 +39,62 @@ class CCXTExchange(Exchange):
 
     @retry((requests.exceptions.ReadTimeout, requests.exceptions.ProxyError, requests.exceptions.ConnectionError,
             ccxt.errors.RequestTimeout), tries=3)
-    def update_orders(self, now: pd.Timestamp, orders: list[Order]):
+    def update_order(self, now: pd.Timestamp, order: Order):
         import ccxt
 
-        for order in orders:
-            if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:
+        if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:  # cancel or reject by code
+            self.strategy.order_history.append((now, order))
+            if order in self.strategy.pending_order:
+                self.strategy.pending_order.remove(order)
+            return
+        elif order.id_ is None:  # for other reason where id is not assigned by code 
+            return
+
+        try:
+            order_info = self.client.fetch_order(order.id_, symbol=self.get_symbol(order.ticker))
+        except ccxt.errors.OrderNotFound:
+            util.logger.warning(f"Order(id={order.id_}) not found. This should not happen!")
+            return
+
+        match order_info["status"]:
+            case "open":
+                order.status = Order.Status.PENDING
+                self.strategy.logger.debug(f"Order pending: {order}")
+                if order not in self.strategy.pending_order:
+                    self.strategy.pending_order.append(order)
+            case "closed":
+                order.status = Order.Status.FILLED
+                self.strategy.logger.info(f"Order filled: {order}")
+                from_ticker, to_ticker = order.from_ticker, order.to_ticker
+                from_qty = order_info["cost"] if order_info["side"] == "buy" else order_info["amount"]
+                to_qty = (
+                    (order_info["amount"] - order_info["fee"]["cost"])
+                    if order_info["side"] == "buy"
+                    else (order_info["cost"] - order_info["fee"]["cost"])
+                )
+                trans = Transaction(
+                    ticker=order.ticker,
+                    prc=order_info["average"],
+                    from_=(from_ticker, from_qty),
+                    to_=(to_ticker, to_qty),
+                    tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
+                    timestamp=pd.Timestamp(order_info["datetime"]),
+                )
+                from_pos, to_pos, _ = trans.split()
+                account = copy.deepcopy(self.strategy.account)
+                account += to_pos
+                account -= from_pos
+                self.strategy.account = account
+                self.strategy.transaction_history.append(trans)
+                self.strategy.order_history.append((pd.Timestamp(order_info["datetime"]), order))
+                if order in self.strategy.pending_order:
+                    self.strategy.pending_order.remove(order)
+            case "canceled":
+                order.status = Order.Status.CANCELED
+                self.strategy.logger.info(f"Order canceled: {order}")
                 self.strategy.order_history.append((now, order))
                 if order in self.strategy.pending_order:
                     self.strategy.pending_order.remove(order)
-            if order.id_ is None:
-                continue
-            try:
-                order_info = self.client.fetch_order(order.id_, symbol=self.get_symbol(order.ticker))
-            except ccxt.errors.OrderNotFound:
-                util.logger.warning(f"Order(id={order.id_}) not found. This should not happen.")
-                continue
-            match order_info["status"]:
-                case "open":
-                    order.status = Order.Status.PENDING
-                    self.strategy.logger.debug(f"Order pending: {order}")
-                    if order not in self.strategy.pending_order:
-                        self.strategy.pending_order.append(order)
-                case "closed":
-                    order.status = Order.Status.FILLED
-                    self.strategy.logger.info(f"Order filled: {order}")
-                    from_ticker, to_ticker = order.from_ticker, order.to_ticker
-                    from_qty = order_info["cost"] if order_info["side"] == "buy" else order_info["amount"]
-                    to_qty = (
-                        (order_info["amount"] - order_info["fee"]["cost"])
-                        if order_info["side"] == "buy"
-                        else (order_info["cost"] - order_info["fee"]["cost"])
-                    )
-                    trans = Transaction(
-                        ticker=order.ticker,
-                        prc=order_info["average"],
-                        from_=(from_ticker, from_qty),
-                        to_=(to_ticker, to_qty),
-                        tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
-                        timestamp=pd.Timestamp(order_info["datetime"]),
-                    )
-                    from_pos, to_pos, _ = trans.split()
-                    account = copy.deepcopy(self.strategy.account)
-                    account += to_pos
-                    account -= from_pos
-                    self.strategy.account = account
-                    self.strategy.transaction_history.append(trans)
-                    self.strategy.order_history.append((pd.Timestamp(order_info["datetime"]), order))
-                    if order in self.strategy.pending_order:
-                        self.strategy.pending_order.remove(order)
-                case "canceled":
-                    order.status = Order.Status.CANCELED
-                    self.strategy.logger.info(f"Order canceled: {order}")
-                    self.strategy.order_history.append((now, order))
-                    if order in self.strategy.pending_order:
-                        self.strategy.pending_order.remove(order)
 
     def execute(self, now: pd.Timestamp, order: Order) -> Order:
         """
@@ -154,7 +159,23 @@ class CCXTExchange(Exchange):
         order.id_ = order_resp["id"]
         order.status = Order.Status.PENDING
         self.strategy.logger.info(f"Order posted: {order}")
+
+        threading.Thread(target=self.check_order, args=(now, order), daemon=True).start()  # schedule order check
         return order
+    
+    def check_order(self, now: pd.Timestamp, order: Order, refresh_rate: float = None):
+        """
+        Args:
+            refresh_rate (float, optional): refresh rate in seconds
+        """
+        refresh_rate = refresh_rate or (self.client.rateLimit / 10 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x100 of it
+
+        while order.status is Order.Status.PENDING:
+            self.strategy.logger.debug(f"Checking order: {order}")
+            self.update_order(now=now, order=order)
+            time.sleep(refresh_rate)
+        
+        self.strategy.logger.debug(f"Checked order: {order}")
 
     def reflect_account(self, account: Account, ticker: str) -> Account:
         """

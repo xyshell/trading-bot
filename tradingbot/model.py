@@ -442,5 +442,5 @@ class Order(BaseModel):
     def cancel(self, exchange, now: pd.Timestamp = pd.NaT) -> typing.Self:
         self.status = Order.Status.CANCELED
         self = exchange.execute(now=now, order=self)
-        exchange.update_orders(now=now, orders=[self])
+        exchange.update_order(now=now, order=self)
         return self

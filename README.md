@@ -77,6 +77,22 @@ cp ./config_example.toml ./config.toml
 
 ![demo_backtest_msft](https://github.com/user-attachments/assets/605af263-b8e4-4c98-9ab2-a09733ea3f8b)
 
+### Dask related
+
+1. run scheduler by:
+
+```bash
+dask scheduler  # got schdueler at tcp://192.168.1.71:8786
+```
+
+2. run worker by:
+
+```bash
+dask worker tcp://192.168.1.71:8786 --nworkers 16
+```
+
+3. check dashboard at http://192.168.1.71:8787
+
 ## Troubleshoot:
 
 1. sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file

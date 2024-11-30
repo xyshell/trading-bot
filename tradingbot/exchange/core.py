@@ -19,7 +19,7 @@ class Exchange:
     def execute(self, now: pd.Timestamp, order: Order):
         pass
 
-    def update_orders(self, now: pd.Timestamp, orders: list[Order]):
+    def update_order(self, now: pd.Timestamp, order: Order):
         pass
 
     def reflect_account(self, account: Account, ticker: str) -> Account:

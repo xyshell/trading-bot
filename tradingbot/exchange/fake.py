@@ -15,15 +15,14 @@ logger = logging.getLogger(__name__)
 
 class FakeExchange(Exchange):
 
-    def update_orders(self, now: pd.Timestamp, orders: list[Order]):
-        for order in orders:
-            if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
-                self.strategy.order_history.append((now, order))
-                if order in self.strategy.pending_order:
-                    self.strategy.pending_order.remove(order)
-            elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
-                if order not in self.strategy.pending_order:
-                    self.strategy.pending_order.append(order)
+    def update_order(self, now: pd.Timestamp, order: Order):
+        if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
+            self.strategy.order_history.append((now, order))
+            if order in self.strategy.pending_order:
+                self.strategy.pending_order.remove(order)
+        elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
+            if order not in self.strategy.pending_order:
+                self.strategy.pending_order.append(order)
 
 class FakeSpotExchange(FakeExchange):
     """Fake spot exchange used for backtest and paper trading"""

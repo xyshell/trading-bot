@@ -872,9 +872,7 @@ class TestCCXTExchange:
         mock_client.create_order.assert_called_once_with(
             symbol="BTC/USDT", type="limit", side="buy", amount=0.00801306450036139, price=62398.1
         )
-        assert new_order.status is Order.Status.PENDING
         assert new_order.id_ is not None
-        exchange.update_orders(now=now, orders=[new_order])
         assert new_order.status is Order.Status.FILLED
         assert new_order not in exchange.strategy.pending_order
 
@@ -896,7 +894,7 @@ class TestCCXTExchange:
         )
         assert new_order.status is Order.Status.PENDING
         assert new_order.id_ is not None
-        exchange.update_orders(now=now, orders=[new_order])
+        exchange.update_order(now=now, order=new_order)
         assert new_order.status is Order.Status.PENDING
         assert new_order in exchange.strategy.pending_order
 
@@ -925,7 +923,7 @@ class TestCCXTExchange:
         mock_client.create_order.assert_not_called()
         assert pending_order.status is Order.Status.PENDING
         assert pending_order.id_ is not None
-        exchange.update_orders(now=now, orders=[pending_order])
+        exchange.update_order(now=now, order=pending_order)
         assert pending_order.status is Order.Status.FILLED
         assert pending_order not in exchange.strategy.pending_order
 
@@ -958,7 +956,7 @@ class TestCCXTExchange:
         assert order.status is Order.Status.CANCELED
         assert order in exchange.strategy.pending_order
 
-        exchange.update_orders(now=now, orders=[order])
+        exchange.update_order(now=now, order=order)
         assert order not in exchange.strategy.pending_order
         assert order in [order for _, order in exchange.strategy.order_history]
 
@@ -988,7 +986,7 @@ class TestCCXTExchange:
         assert order.status is Order.Status.PENDING
         assert order in exchange.strategy.pending_order
 
-        exchange.update_orders(now=now, orders=[order])
+        exchange.update_order(now=now, order=order)
         assert order.status is Order.Status.CANCELED
         assert order not in exchange.strategy.pending_order
         assert order in [order for _, order in exchange.strategy.order_history]
@@ -1019,7 +1017,7 @@ class TestCCXTExchange:
         assert order.id_ is None
         assert order.status is Order.Status.REJECTED
 
-        exchange.update_orders(now=now, orders=[order])
+        exchange.update_order(now=now, order=order)
         assert order.status is Order.Status.REJECTED
         assert order not in exchange.strategy.pending_order
         assert order in [order for _, order in exchange.strategy.order_history]

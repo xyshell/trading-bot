@@ -89,7 +89,7 @@ class BacktestPipeline(Pipeline):
         self._mark_to_market(strategy)
         for order in strategy.pending_order:
             strategy.exchange.execute(now, order)
-        strategy.exchange.update_orders(now, strategy.pending_order)
+            strategy.exchange.update_order(now, order)
         self._mark_to_market(strategy)
 
     def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
@@ -98,7 +98,8 @@ class BacktestPipeline(Pipeline):
         orders = util.to_list(new_orders) + strategy.pending_order
         for order in orders:
             order = strategy.exchange.execute(now, order)
-        strategy.exchange.update_orders(now, orders)
+            strategy.exchange.update_order(now, order)
+        
         # archive position
         self._mark_to_market(strategy)
         strategy.account_history[now] = copy.deepcopy(strategy.account)
@@ -185,10 +186,10 @@ class BacktestPipeline(Pipeline):
 
 
 class LivePipeline(Pipeline):
-    def __init__(self, now_factory: Callable[[], pd.Timestamp], refresh_rate: float = 0.0, _reflect_account: bool = True, **kwargs):
+    def __init__(self, now_factory: Callable[[], pd.Timestamp], refresh_rate: float = 0.0, reflect_account: bool = True, **kwargs):
         super().__init__(now_factory)
         self._refresh_rate = refresh_rate
-        self._reflect_account = _reflect_account
+        self._reflect_account = reflect_account
 
     def _get_now_generator(self):
         def now_generator():
@@ -215,8 +216,9 @@ class LivePipeline(Pipeline):
             strategy.logger.debug(f"{msg}")
             return False
 
-        # update status of pending orders
-        strategy.exchange.update_orders(now, strategy.pending_order)
+        # make sure status of pending orders are up-to-date
+        for order in strategy.pending_order:
+            strategy.exchange.update_order(now, order)
         self._mark_to_market(strategy)
 
         # reflect account
@@ -234,7 +236,6 @@ class LivePipeline(Pipeline):
         orders = util.to_list(new_orders) + strategy.pending_order
         for order in orders:
             order = strategy.exchange.execute(now, order)
-        strategy.exchange.update_orders(now, orders)
         self._mark_to_market(strategy)
 
         # archive position

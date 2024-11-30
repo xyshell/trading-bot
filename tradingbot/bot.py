@@ -35,7 +35,7 @@ class Bot:
         preload: bool = False,
         # live mode
         refresh_rate: float = 0.0,
-        _reflect_account: bool = True,
+        reflect_account: bool = True,
         **kwargs,
     ):
         """
@@ -50,19 +50,19 @@ class Bot:
 
             # live mode
             refresh_rate (float, optional): refresh rate in seconds.
-            _reflect_account (bool, optional): whether to reflect from actual account in live mode
+            reflect_account (bool, optional): whether to reflect from actual account in live mode
         """
         self._mode = mode
         self._pipeline = (
             BacktestPipeline(now_factory, start=start, end=end, **kwargs)
             if mode == "backtest"
-            else LivePipeline(now_factory, refresh_rate=refresh_rate, _reflect_account=_reflect_account, **kwargs)
+            else LivePipeline(now_factory, refresh_rate=refresh_rate, reflect_account=reflect_account, **kwargs)
         )
         self._start = start
         self._end = end
         self._now_factory = now_factory
         self._preload = preload
-        self._reflect_account = _reflect_account
+        self._reflect_account = reflect_account
 
         self._data: dict[str, Data] = {}
         self._strategy: Strategy = None
