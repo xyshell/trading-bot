@@ -196,6 +196,8 @@ class Bot:
                     return bot.strategy
 
             bot.strategy = strat
+            for trigger in bot.strategy.next.trigger:
+                trigger.checked.clear()
             try:
                 logger.info(f"Optimizing: {key=}")
                 with util.set_level(logging.getLogger("tradingbot"), logging.WARNING):
