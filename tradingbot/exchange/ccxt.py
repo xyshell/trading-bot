@@ -199,7 +199,7 @@ class CCXTExchange(Exchange):
         self.strategy.logger.info(f"Order posted: {order}")
 
         if check:
-            def _check_order(self, now: pd.Timestamp, order: Order, frequency: float = None):
+            def _check_order(now: pd.Timestamp, order: Order, frequency: float = None):
                 """
                 Args:
                     frequency (float, optional): refresh rate in seconds
