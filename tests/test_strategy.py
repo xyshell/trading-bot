@@ -21,7 +21,7 @@ class _SMACross(tb.Strategy):
         Args:
             context (dict):
                 "trigger": list[Trigger], reason of this run
-                "pending_orders": list[Order], if any pending orders
+                "open_order": list[Order], if any pending orders
         """
         self.sma_fast = self.data["candlestick_1h"]["close"].rolling(window=self.param["fast"]).mean()
         self.sma_slow = self.data["candlestick_1h"]["close"].rolling(window=self.param["slow"]).mean()
@@ -96,7 +96,7 @@ class _LimitOrderDummy(tb.Strategy):
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
     def next(self, context: dict) -> Order | Sequence[Order] | None:
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
-        for order in context["pending_order"]:
+        for order in context["open_order"]:
             if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
                 order.cancel(self.exchange, now=context["now"])
                 return Order(
@@ -108,7 +108,7 @@ class _LimitOrderDummy(tb.Strategy):
                     param={"price": curr_prc * 0.98},
                 )
 
-        if not context["pending_order"]:
+        if not context["open_order"]:
             return Order(
                 action="BUY",
                 ticker=self.param["ticker"],
@@ -153,7 +153,7 @@ class TestBacktestSpotStrategy:
                 Args:
                     context (dict):
                         "trigger": list[Trigger], reason of this run
-                        "pending_orders": list[Order], if any pending orders
+                        "open_order": list[Order], if any pending orders
                 """
                 self.sma_fast = self.data["candlestick_1h"]["close"].rolling(window=self.param["fast"]).mean()
                 self.sma_slow = self.data["candlestick_1h"]["close"].rolling(window=self.param["slow"]).mean()
@@ -209,7 +209,7 @@ class TestBacktestSpotStrategy:
                 Args:
                     context (dict):
                         "trigger": list[Trigger], reason of this run
-                        "pending_orders": list[Order], if any pending orders
+                        "open_order": list[Order], if any pending orders
                 """
                 self.sma_fast = self.data["candlestick_1h"]["close"].rolling(window=self.param["fast"]).mean()
                 self.sma_slow = self.data["candlestick_1h"]["close"].rolling(window=self.param["slow"]).mean()
@@ -338,7 +338,7 @@ class TestBacktestFutureStrategy:
             @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
             def next(self, context: dict) -> Order | Sequence[Order] | None:
                 curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
-                for order in context["pending_order"]:
+                for order in context["open_order"]:
                     if order.type is Order.Type.LIMIT and order.action is Order.Action.OPEN_SHORT and order.param["price"] > curr_prc * 1.03:
                         order.cancel(self.exchange, now=context["now"])
                         return Order(
@@ -350,7 +350,7 @@ class TestBacktestFutureStrategy:
                             param={"price": curr_prc * 1.02},
                         )
 
-                if not context["pending_order"]:
+                if not context["open_order"]:
                     return Order(
                         action="OPEN_SHORT",
                         ticker=self.param["ticker"],

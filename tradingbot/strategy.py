@@ -21,7 +21,7 @@ class Strategy(abc.ABC):
         self.param = self.__class__.param.copy()
         self.param.update(kwargs)
 
-        self.pending_order: list[Order] = []  # keep track of all pending orders
+        self.open_order: list[Order] = []  # keep track of all open orders
         self.order_history: list[tuple[pd.Timestamp, Order]] = []  # record all filled orders
         self.transaction_history: list[Transaction] = []  # record all transactions
         self.init_account: Account  # initial account

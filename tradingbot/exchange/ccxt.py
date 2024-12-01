@@ -47,8 +47,8 @@ class CCXTExchange(Exchange):
 
         if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:  # cancel or reject by code
             self.strategy.order_history.append((now, order))
-            if order in self.strategy.pending_order:
-                self.strategy.pending_order.remove(order)
+            if order in self.strategy.open_order:
+                self.strategy.open_order.remove(order)
             return
         elif order.id_ is None:  # for other reason where id is not assigned by code 
             return
@@ -61,10 +61,10 @@ class CCXTExchange(Exchange):
 
         match order_info["status"]:
             case "open":
-                order.status = Order.Status.PENDING
-                self.strategy.logger.debug(f"Order pending: {order}")
-                if order not in self.strategy.pending_order:
-                    self.strategy.pending_order.append(order)
+                order.status = Order.Status.PARTIAL_FILLED if order_info["filled"] > 0.0 else Order.Status.PENDING
+                self.strategy.logger.debug(f"Order open: {order}")
+                if order not in self.strategy.open_order:
+                    self.strategy.open_order.append(order)
             case "closed":
                 order.status = Order.Status.FILLED
                 self.strategy.logger.info(f"Order filled: {order}")
@@ -90,14 +90,14 @@ class CCXTExchange(Exchange):
                 self.strategy.account = account
                 self.strategy.transaction_history.append(trans)
                 self.strategy.order_history.append((pd.Timestamp(order_info["datetime"]), order))
-                if order in self.strategy.pending_order:
-                    self.strategy.pending_order.remove(order)
+                if order in self.strategy.open_order:
+                    self.strategy.open_order.remove(order)
             case "canceled":
                 order.status = Order.Status.CANCELED
                 self.strategy.logger.info(f"Order canceled: {order}")
                 self.strategy.order_history.append((now, order))
-                if order in self.strategy.pending_order:
-                    self.strategy.pending_order.remove(order)
+                if order in self.strategy.open_order:
+                    self.strategy.open_order.remove(order)
 
     def _execute_market(self, now: pd.Timestamp, order: Order) -> Order:
         import ccxt

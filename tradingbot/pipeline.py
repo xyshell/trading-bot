@@ -88,7 +88,7 @@ class BacktestPipeline(Pipeline):
         self._update_data(now, strategy.data)
         # execute pending orders
         self._mark_to_market(strategy)
-        for order in strategy.pending_order:
+        for order in strategy.open_order:
             strategy.exchange.execute(now, order)
             strategy.exchange.update_order(now, order)
         self._mark_to_market(strategy)
@@ -96,7 +96,7 @@ class BacktestPipeline(Pipeline):
     def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
         # execute new orders + pending orders
         self._mark_to_market(strategy)
-        orders = util.to_list(new_orders) + strategy.pending_order
+        orders = util.to_list(new_orders) + strategy.open_order
         for order in orders:
             order = strategy.exchange.execute(now, order)
             strategy.exchange.update_order(now, order)
@@ -159,7 +159,7 @@ class BacktestPipeline(Pipeline):
 
                 # call next
                 new_orders = strategy.next(
-                    context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order}
+                    context={"now": now, "trigger": triggered, "open_order": strategy.open_order}
                 )
 
                 # post-process
@@ -218,7 +218,7 @@ class LivePipeline(Pipeline):
             return False
 
         # make sure status of pending orders are up-to-date
-        for order in strategy.pending_order:
+        for order in strategy.open_order:
             strategy.exchange.update_order(now, order)
         self._mark_to_market(strategy)
 
@@ -234,7 +234,7 @@ class LivePipeline(Pipeline):
     def _post(self, now: pd.Timestamp, strategy: Strategy, new_orders: list[Order]):
         # execute orders
         self._mark_to_market(strategy)
-        orders = util.to_list(new_orders) + strategy.pending_order
+        orders = util.to_list(new_orders) + strategy.open_order
         for order in orders:
             order = strategy.exchange.execute(now, order)
         self._mark_to_market(strategy)
@@ -273,7 +273,7 @@ class LivePipeline(Pipeline):
                         continue
 
                     # call next
-                    new_orders = strategy.next(context={"now": now, "trigger": triggered, "pending_order": strategy.pending_order})
+                    new_orders = strategy.next(context={"now": now, "trigger": triggered, "open_order": strategy.open_order})
 
                     # post-process
                     self._post(now, strategy, new_orders)
