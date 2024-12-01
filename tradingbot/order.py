@@ -24,7 +24,7 @@ class Order(BaseModel):
         MARKET = "MARKET"
         LIMIT = "LIMIT"  # {"price": 12345.6}
         # algo
-        TrailingLimit = "TrailingLimit" # {"interval": "1m", offset": 0.9995}
+        TRAILING_LIMIT = "TRAILING_LIMIT" # {"interval": "1m", offset": 0.9995}
 
     class SizeType(Enum):
         BASE = "BASE"  # units in base currency. e.g. BTC
@@ -58,9 +58,9 @@ class Order(BaseModel):
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
         if self.type is Order.Type.LIMIT:
             assert self.param["price"] is not None
-        if self.type is Order.Type.TrailingLimit:
+        if self.type is Order.Type.TRAILING_LIMIT:
             assert self.param["interval"] is not None
-            assert self.param["offset"] is not None
+            self.param["offset"] = float(self.param["offset"])
 
     @property
     def from_ticker(self) -> str:
@@ -80,6 +80,6 @@ class Order(BaseModel):
 
     def cancel(self, exchange, now: pd.Timestamp = pd.NaT) -> typing.Self:
         self.status = Order.Status.CANCELED
-        self = exchange.execute(now=now, order=self)
+        self = exchange.execute(now=now, order=self, check=False)
         exchange.update_order(now=now, order=self)
         return self

@@ -125,7 +125,7 @@ class FakeSpotExchange(FakeExchange):
         order = self._reconcile(now, order, exec_prc)
         return order
 
-    def execute(self, now: pd.Timestamp, order: Order) -> Order:
+    def execute(self, now: pd.Timestamp, order: Order, **kwargs) -> Order:
         """
         Args:
             now (pd.Timestamp):
@@ -272,7 +272,7 @@ class FakeFutureExchange(FakeExchange, FutureExchange):
         order = self._reconcile(now, order, exec_prc)
         return order
 
-    def execute(self, now: pd.Timestamp, order: Order) -> Order:
+    def execute(self, now: pd.Timestamp, order: Order, **kwargs) -> Order:
         """
         Args:
             now (pd.Timestamp):

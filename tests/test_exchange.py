@@ -1053,6 +1053,9 @@ class TestCCXTExchange:
     #     order = exchange.client.fetch_order("1877236041473081344", symbol="BTC/USDT")
     #     assert order["status"] == "closed"
 
+    #     with pytest.raises(ccxt.errors.OrderNotFound):  # canceling a closed order raises OrderNotFound
+    #         exchange.client.cancel_order("1877236041473081344", symbol="BTC/USDT")
+
     #     order = exchange.client.fetch_order("1877192719882797056", symbol="BTC/USDT")
     #     assert order["status"] == "open"
 

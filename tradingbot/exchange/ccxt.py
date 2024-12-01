@@ -45,7 +45,7 @@ class CCXTExchange(Exchange):
     def update_order(self, now: pd.Timestamp, order: Order):
         import ccxt
 
-        if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:  # cancel or reject by code
+        if order.status in {Order.Status.CANCELED, Order.Status.REJECTED}:
             self.strategy.order_history.append((now, order))
             if order in self.strategy.open_order:
                 self.strategy.open_order.remove(order)
@@ -56,18 +56,18 @@ class CCXTExchange(Exchange):
         try:
             order_info = self.client.fetch_order(order.id_, symbol=self.get_symbol(order.ticker))
         except ccxt.errors.OrderNotFound:
-            util.logger.warning(f"Order(id={order.id_}) not found. This should not happen!")
+            util.logger.warning(f"{order.id_=} not found. Ignored. This should not happen!")
             return
 
         match order_info["status"]:
             case "open":
                 order.status = Order.Status.PARTIAL_FILLED if order_info["filled"] > 0.0 else Order.Status.PENDING
-                self.strategy.logger.debug(f"Order open: {order}")
+                self.strategy.logger.debug(f"order open: {order}")
                 if order not in self.strategy.open_order:
                     self.strategy.open_order.append(order)
             case "closed":
                 order.status = Order.Status.FILLED
-                self.strategy.logger.info(f"Order filled: {order}")
+                self.strategy.logger.info(f"order filled: {order}")
                 from_ticker, to_ticker = order.from_ticker, order.to_ticker
                 from_qty = order_info["cost"] if order_info["side"] == "buy" else order_info["amount"]
                 to_qty = (
@@ -94,7 +94,7 @@ class CCXTExchange(Exchange):
                     self.strategy.open_order.remove(order)
             case "canceled":
                 order.status = Order.Status.CANCELED
-                self.strategy.logger.info(f"Order canceled: {order}")
+                self.strategy.logger.info(f"order canceled: {order}")
                 self.strategy.order_history.append((now, order))
                 if order in self.strategy.open_order:
                     self.strategy.open_order.remove(order)
@@ -141,7 +141,7 @@ class CCXTExchange(Exchange):
         self.update_order(now=now, order=order)
         return order
 
-    def _execute_limit(self, now: pd.Timestamp, order: Order) -> Order:
+    def _execute_limit(self, now: pd.Timestamp, order: Order, check: bool = True) -> Order:
         import ccxt
 
         assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
@@ -154,8 +154,14 @@ class CCXTExchange(Exchange):
         elif order.status is Order.Status.CANCELED:
             try:
                 self.client.cancel_order(str(order.id_), symbol=self.get_symbol(order.ticker))
-            except ccxt.errors.OrderNotFound as e:
-                self.strategy.logger.info(f"Order(id={order.id_}) Cancel failed, due to {e!r}. Do nothing.")
+            except ccxt.errors.OrderNotFound:
+                try:
+                    order_info = self.client.fetch_order(str(order.id_), symbol=self.get_symbol(order.ticker))
+                except Exception as e:
+                    self.strategy.logger.debug(f"order cancel and fetch failed for {order.id_=}: due to {e!r}. Ignored.")
+                else:
+                    if order_info["status"] == "closed":
+                        order.status = Order.Status.FILLED
             return order
 
         symbol = self.get_symbol(order.ticker)
@@ -192,10 +198,74 @@ class CCXTExchange(Exchange):
         order.status = Order.Status.PENDING
         self.strategy.logger.info(f"Order posted: {order}")
 
-        threading.Thread(target=self._check_order, args=(now, order), daemon=True).start()  # schedule periodic order check
+        if check:
+            def _check_order(self, now: pd.Timestamp, order: Order, frequency: float = None):
+                """
+                Args:
+                    frequency (float, optional): refresh rate in seconds
+                """
+                frequency = frequency or (self.client.rateLimit / 10 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x100 of it
+
+                while order.status is Order.Status.PENDING:
+                    self.strategy.logger.debug(f"Checking order: {order}")
+                    self.update_order(now=now, order=order)
+                    time.sleep(frequency)
+                
+                self.strategy.logger.debug(f"Checked order: {order}")
+                
+            threading.Thread(target=_check_order, args=(now, order), daemon=True).start()  # schedule periodic order check
         return order
     
-    def execute(self, now: pd.Timestamp, order: Order) -> Order:
+    def _execute_trailing_limit(self, now: pd.Timestamp, order: Order) -> Order:
+        assert order.type is Order.Type.TRAILING_LIMIT
+
+        init_now = now
+        init_order = copy.deepcopy(order)  # make a limit order from trailing order
+        init_order.type = Order.Type.LIMIT
+        init_order.param = {"price": self.get_price(now, order.ticker) * order.param["offset"]}
+        init_order = self._execute_limit(now, init_order, check=False)
+        self.update_order(now=now, order=init_order)
+
+        prev_order, next_order = copy.deepcopy(init_order), copy.deepcopy(init_order)
+        if init_order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
+            interval_td = pd.Timedelta(order.param["interval"])
+            interval_sec = interval_td.total_seconds()
+            time.sleep(interval_sec)
+            now += interval_td
+
+            while prev_order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
+                prev_order.cancel(self, now=now)
+                order_info = self.client.fetch_order(prev_order.id_, symbol=self.get_symbol(order.ticker))
+                if order_info["status"] == "closed": 
+                    break
+
+                next_order = Order(
+                    ticker=order.ticker, 
+                    type=Order.Type.LIMIT,
+                    action=order.action, 
+                    size_type=Order.SizeType.BASE, 
+                    size=order_info["remaining"], 
+                    param={"price": self.get_price(now, order.ticker) * order.param["offset"]}
+                )
+                next_order = self._execute_limit(now, next_order, check=False)
+                self.strategy.logger.debug(
+                    f"trailing limit replaced: prev_order=({prev_order.param['price']}, {prev_order.size}) -> next_order=({next_order.param['price']}, {next_order.size})"
+                )
+
+                time.sleep(interval_sec)
+                now += interval_td
+
+                self.update_order(now=now, order=next_order)
+                prev_order = next_order
+
+        order.status = prev_order.status
+        order.id_ = prev_order.id_ 
+        self.strategy.logger.info(f"trailing limit completed in {(now - init_now).total_seconds() / 60 :.2f} mins: {order=}")
+        if order in self.strategy.open_order:
+            self.strategy.open_order.remove(order)
+        return order
+
+    def execute(self, now: pd.Timestamp, order: Order, **kwargs) -> Order:
         """
         Args:
             now (pd.Timestamp):
@@ -205,9 +275,11 @@ class CCXTExchange(Exchange):
             Order
         """
         if order.type is Order.Type.LIMIT:
-            return self._execute_limit(now, order)
+            return self._execute_limit(now, order, **kwargs)
         elif order.type is Order.Type.MARKET:
             return self._execute_market(now, order)
+        elif order.type is Order.Type.TRAILING_LIMIT:
+            return self._execute_trailing_limit(now, order)
         raise NotImplementedError
     
     def _check_order(self, now: pd.Timestamp, order: Order, frequency: float = None):
