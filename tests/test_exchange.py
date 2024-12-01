@@ -5,7 +5,8 @@ import pytest
 import ccxt
 
 from tradingbot.exchange.ccxt import CCXTExchange
-from tradingbot.model import Account, Order
+from tradingbot.model import Account
+from tradingbot.order import Order
 
 
 insufficient_funds_response = 'okx {"code":"1","data":[{"clOrdId":"e847386590ce4dBC41721bb12450fd4a","ordId":"","sCode":"51008","sMsg":"Order failed. Insufficient USDT balance in account. ","tag":"e847386590ce4dBC","ts":"1728445289108"}],"inTime":"1728445289108394","msg":"All operations failed","outTime":"1728445289108980"}'

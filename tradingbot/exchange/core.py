@@ -3,7 +3,8 @@ import abc
 import pandas as pd
 
 from tradingbot.strategy import Strategy
-from tradingbot.model import Account, Order
+from tradingbot.model import Account
+from tradingbot.order import Order
 
 
 class Exchange:

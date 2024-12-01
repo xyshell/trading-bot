@@ -3,7 +3,8 @@ import logging.config
 from ._version import __version__
 from .data import Data
 from .strategy import Strategy
-from .model import Config, Order, Position, MarginPosition, Account, MarginAccount
+from .model import Config, Position, MarginPosition, Account, MarginAccount
+from .order import Order
 from .bot import Bot
 from .trigger import schedule
 from .reporter import Reporter

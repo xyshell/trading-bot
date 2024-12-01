@@ -5,9 +5,9 @@ import pandas as pd
 
 import tradingbot.util as util
 from tradingbot.model import (
-    Order, MarginPosition, 
-    Transaction, OpenTransaction, CloseTransaction, 
+    MarginPosition, Transaction, OpenTransaction, CloseTransaction, 
 )
+from tradingbot.order import Order
 from tradingbot.exchange.core import Exchange, FutureExchange
 
 logger = logging.getLogger(__name__)

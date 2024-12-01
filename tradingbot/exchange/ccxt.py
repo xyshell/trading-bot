@@ -11,7 +11,8 @@ from retry import retry
 import tradingbot as tb
 import tradingbot.util as util
 from tradingbot.exchange.core import Exchange, FutureExchange
-from tradingbot.model import Account, Order, Position, Transaction
+from tradingbot.model import Account, Position, Transaction
+from tradingbot.order import Order
 
 
 class CCXTExchange(Exchange):

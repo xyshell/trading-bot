@@ -14,7 +14,8 @@ import requests
 from retry import retry
 
 from tradingbot.exchange.fake import FakeExchange
-from tradingbot.model import MarginPosition, Order
+from tradingbot.model import MarginPosition
+from tradingbot.order import Order
 import tradingbot.util as util
 from tradingbot.data.core import Data
 from tradingbot.strategy import Strategy

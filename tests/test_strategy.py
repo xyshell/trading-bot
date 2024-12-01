@@ -3,7 +3,8 @@ from typing import Sequence
 
 
 import tradingbot as tb
-from tradingbot.model import MarginAccount, Order
+from tradingbot.model import MarginAccount
+from tradingbot.order import Order
 import tradingbot.util as util
 
 
@@ -15,7 +16,7 @@ class _SMACross(tb.Strategy):
         self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
 
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
-    def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+    def next(self, context: dict) -> Order | Sequence[Order] | None:
         """
         Args:
             context (dict):
@@ -31,10 +32,10 @@ class _SMACross(tb.Strategy):
 
         if crossup:
             self.logger.info(f"SMA crossed up, buy at {curr_prc:.2f}")
-            order = tb.Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+            order = Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
         elif crossdown:
             self.logger.info(f"SMA crossed down, sell at {curr_prc:.2f}")
-            order = tb.Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+            order = Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
         else:
             order = None
 
@@ -53,7 +54,7 @@ class _SMACrossLS(tb.Strategy):
         self.logger.info(f"{self.__class__.__name__} started with param: {self.param}")
 
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
-    def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+    def next(self, context: dict) -> Order | Sequence[Order] | None:
         self.sma_fast = self.data["candlestick_1h"]["close"].rolling(window=self.param["fast"]).mean()
         self.sma_slow = self.data["candlestick_1h"]["close"].rolling(window=self.param["slow"]).mean()
         crossup = self.sma_fast.iloc[-2] < self.sma_slow.iloc[-2] and self.sma_fast.iloc[-1] >= self.sma_slow.iloc[-1]
@@ -69,17 +70,17 @@ class _SMACrossLS(tb.Strategy):
         if crossup:
             self.logger.info(f"SMA crossed up, buy at {curr_prc:.2f}")
             if not in_market:
-                order.append(tb.Order(action="OPEN_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="OPEN_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
             elif in_short:
-                order.append(tb.Order(action="CLOSE_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
-                order.append(tb.Order(action="OPEN_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="CLOSE_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="OPEN_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
         elif crossdown:
             self.logger.info(f"SMA crossed down, sell at {curr_prc:.2f}")
             if not in_market:
-                order.append(tb.Order(action="OPEN_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="OPEN_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
             elif in_long:
-                order.append(tb.Order(action="CLOSE_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
-                order.append(tb.Order(action="OPEN_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="CLOSE_LONG", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
+                order.append(Order(action="OPEN_SHORT", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET"))
         else:
             order = None
 
@@ -93,12 +94,12 @@ class _LimitOrderDummy(tb.Strategy):
     param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
 
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
-    def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+    def next(self, context: dict) -> Order | Sequence[Order] | None:
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
         for order in context["pending_order"]:
             if order.type is Order.Type.LIMIT and order.action is Order.Action.BUY and order.param["price"] < curr_prc * 0.97:
                 order.cancel(self.exchange, now=context["now"])
-                return tb.Order(
+                return Order(
                     action="BUY",
                     ticker=self.param["ticker"],
                     size_type="PCTG",
@@ -108,7 +109,7 @@ class _LimitOrderDummy(tb.Strategy):
                 )
 
         if not context["pending_order"]:
-            return tb.Order(
+            return Order(
                 action="BUY",
                 ticker=self.param["ticker"],
                 size_type="PCTG",
@@ -147,7 +148,7 @@ class TestBacktestSpotStrategy:
                 self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
 
             @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1d")])
-            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+            def next(self, context: dict) -> Order | Sequence[Order] | None:
                 """
                 Args:
                     context (dict):
@@ -163,10 +164,10 @@ class TestBacktestSpotStrategy:
 
                 if crossup:
                     self.logger.info(f"SMA crossed up, buy at {curr_prc:.2f}")
-                    order = tb.Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+                    order = Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
                 elif crossdown:
                     self.logger.info(f"SMA crossed down, sell at {curr_prc:.2f}")
-                    order = tb.Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+                    order = Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
                 else:
                     order = None
 
@@ -203,7 +204,7 @@ class TestBacktestSpotStrategy:
                 self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
 
             @tb.schedule([tb.trigger.StandardInterval("1h")])
-            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+            def next(self, context: dict) -> Order | Sequence[Order] | None:
                 """
                 Args:
                     context (dict):
@@ -219,10 +220,10 @@ class TestBacktestSpotStrategy:
 
                 if crossup:
                     self.logger.info(f"SMA crossed up, buy at {curr_prc:.2f}")
-                    order = tb.Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+                    order = Order(action="BUY", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
                 elif crossdown:
                     self.logger.info(f"SMA crossed down, sell at {curr_prc:.2f}")
-                    order = tb.Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
+                    order = Order(action="SELL", ticker=ticker, size_type="PCTG", size=1.0, type="MARKET")
                 else:
                     order = None
 
@@ -335,12 +336,12 @@ class TestBacktestFutureStrategy:
     def test_limit_order(self, snapshot):
         class Test(_LimitOrderDummy):
             @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
-            def next(self, context: dict) -> tb.Order | Sequence[tb.Order] | None:
+            def next(self, context: dict) -> Order | Sequence[Order] | None:
                 curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
                 for order in context["pending_order"]:
                     if order.type is Order.Type.LIMIT and order.action is Order.Action.OPEN_SHORT and order.param["price"] > curr_prc * 1.03:
                         order.cancel(self.exchange, now=context["now"])
-                        return tb.Order(
+                        return Order(
                             action="OPEN_SHORT",
                             ticker=self.param["ticker"],
                             size_type="PCTG",
@@ -350,7 +351,7 @@ class TestBacktestFutureStrategy:
                         )
 
                 if not context["pending_order"]:
-                    return tb.Order(
+                    return Order(
                         action="OPEN_SHORT",
                         ticker=self.param["ticker"],
                         size_type="PCTG",

@@ -7,7 +7,8 @@ import pandas as pd
 
 from tradingbot.data.candlestick import Candlestick
 import tradingbot.util as util
-from tradingbot.model import Account, Order, Transaction
+from tradingbot.model import Account, Transaction
+from tradingbot.order import Order
 
 
 class Strategy(abc.ABC):
