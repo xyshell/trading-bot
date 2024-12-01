@@ -225,7 +225,7 @@ class LivePipeline(Pipeline):
         # reflect account
         if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
             try:
-                strategy.account = strategy.exchange.reflect_account(strategy.init_account, ticker)
+                strategy.account = strategy.exchange.reflect_account(now, strategy.init_account, ticker)
             except Exception as e:
                 strategy.logger.debug(f"Failed to reflect account. due to {e!r}. Ignored.")
 
@@ -248,7 +248,7 @@ class LivePipeline(Pipeline):
 
         # reflect account
         if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
-            strategy.account = strategy.exchange.reflect_account(strategy.init_account, ticker)
+            strategy.account = strategy.exchange.reflect_account(self._now_factory(), strategy.init_account, ticker)
 
         # start strategy
         strategy.start()

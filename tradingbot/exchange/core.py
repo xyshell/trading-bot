@@ -23,7 +23,7 @@ class Exchange:
     def update_order(self, now: pd.Timestamp, order: Order):
         pass
 
-    def reflect_account(self, account: Account, ticker: str) -> Account:
+    def reflect_account(self, now: pd.Timestamp, account: Account, ticker: str) -> Account:
         return account
 
 

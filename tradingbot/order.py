@@ -20,8 +20,11 @@ class Order(BaseModel):
         CLOSE_SHORT = "CLOSE_SHORT"
 
     class Type(Enum):
-        LIMIT = "LIMIT"
+        # basic
         MARKET = "MARKET"
+        LIMIT = "LIMIT"  # {"price": 12345.6}
+        # algo
+        TrailingLimit = "TrailingLimit" # {"interval": "1m", offset": 0.9995}
 
     class SizeType(Enum):
         BASE = "BASE"  # units in base currency. e.g. BTC
@@ -53,6 +56,11 @@ class Order(BaseModel):
 
     def model_post_init(self, __context):
         logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
+        if self.type is Order.Type.LIMIT:
+            assert self.param["price"] is not None
+        if self.type is Order.Type.TrailingLimit:
+            assert self.param["interval"] is not None
+            assert self.param["offset"] is not None
 
     @property
     def from_ticker(self) -> str:

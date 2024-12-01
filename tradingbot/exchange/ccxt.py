@@ -1,4 +1,5 @@
 import copy
+import functools
 import random
 import threading
 import time
@@ -35,7 +36,8 @@ class CCXTExchange(Exchange):
     def get_symbol(ticker: str) -> str:
         return "/".join(ticker.split("/")[::-1])
 
-    def get_price(self, ticker: str) -> float:
+    @functools.lru_cache(maxsize=128)
+    def get_price(self, now: pd.Timestamp, ticker: str) -> float:
         return self.client.fetch_ticker(self.get_symbol(ticker))["last"]
 
     @retry((requests.exceptions.ReadTimeout, requests.exceptions.ProxyError, requests.exceptions.ConnectionError,
@@ -97,20 +99,55 @@ class CCXTExchange(Exchange):
                 if order in self.strategy.pending_order:
                     self.strategy.pending_order.remove(order)
 
-    def execute(self, now: pd.Timestamp, order: Order) -> Order:
-        """
-        Args:
-            now (pd.Timestamp):
-            order (Order):
-
-        Returns:
-            Order
-        """
+    def _execute_market(self, now: pd.Timestamp, order: Order) -> Order:
         import ccxt
 
+        assert order.type is Order.Type.MARKET, f"Invalid order type: {order.type}"
+        assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
+        assert order.status is Order.Status.NEW, f"Invalid order status: {order.status}"
+        quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
+
+        symbol = self.get_symbol(order.ticker)
+        type_ = "market"
+        side = "buy" if order.action is Order.Action.BUY else "sell"
+        match order.size_type:
+            case Order.SizeType.PCTG if side == "buy":  # buy BTC, cost USDT
+                price = self.get_price(now, order.ticker)
+                amount = self.strategy.account[quote_ticker].qty * order.size / price
+            case Order.SizeType.PCTG if side == "sell":  # sell BTC, cost BTC
+                amount = self.strategy.account[base_ticker].qty * order.size
+            case Order.SizeType.QUOTE:
+                amount = order.size / self.get_price(now, order.ticker)
+            case Order.SizeType.BASE:
+                amount = order.size
+        try:
+            self.strategy.logger.debug(f"Calling client.create_order({symbol}, {type_}, {side}, {amount})")
+            order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=None)
+        except ccxt.errors.InsufficientFunds as e:
+            self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e}")
+            order.status = Order.Status.REJECTED
+            return order
+        except ccxt.errors.InvalidOrder as e:
+            self.strategy.logger.error(f"Order rejected: {order}, due to InvalidOrder {e}")
+            order.status = Order.Status.REJECTED
+            return order
+        except Exception as e:
+            self.strategy.logger.error(f"Order failed: {order}, due to {e!r}")
+            order.status = Order.Status.REJECTED
+            return order
+
+        order.id_ = order_resp["id"]
+        self.strategy.logger.info(f"Order posted: {order}")
+        self.update_order(now=now, order=order)
+        return order
+
+    def _execute_limit(self, now: pd.Timestamp, order: Order) -> Order:
+        import ccxt
+
+        assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
+        assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
         assert order.status in {Order.Status.NEW, Order.Status.PENDING, Order.Status.CANCELED}, f"Invalid order status: {order.status}"
-        if order.type not in {Order.Type.LIMIT, Order.Type.MARKET}:
-            raise NotImplementedError(f"Order type {order.type} is not supported yet.")
+        quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
 
         if order.status is Order.Status.PENDING:
             return order
@@ -121,27 +158,21 @@ class CCXTExchange(Exchange):
                 self.strategy.logger.info(f"Order(id={order.id_}) Cancel failed, due to {e!r}. Do nothing.")
             return order
 
-        # order.status is Order.Status.NEW
-        quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
-
-        # post order
         symbol = self.get_symbol(order.ticker)
-        type_ = "limit" if order.type is Order.Type.LIMIT else "market"
+        type_ = "limit"
         side = "buy" if order.action is Order.Action.BUY else "sell"
         match order.size_type:
             case Order.SizeType.PCTG if side == "buy":  # buy BTC, cost USDT
-                price = order.param["price"] if type_ == "limit" else self.get_price(order.ticker)
+                price = order.param["price"] if type_ == "limit" else self.get_price(now, order.ticker)
                 amount = self.strategy.account[quote_ticker].qty * order.size / price
             case Order.SizeType.PCTG if side == "sell":  # sell BTC, cost BTC
                 amount = self.strategy.account[base_ticker].qty * order.size
-            case Order.SizeType.QUOTE if type_ == "limit":
+            case Order.SizeType.QUOTE:
                 amount = order.size / order.param["price"]
-            case Order.SizeType.QUOTE if type_ == "market":
-                amount = order.size / self.get_price(order.ticker)
             case Order.SizeType.BASE:
                 amount = order.size
         try:
-            price = order.param["price"] if type_ == "limit" else None
+            price = order.param["price"]
             self.strategy.logger.debug(f"Calling client.create_order({symbol}, {type_}, {side}, {amount}, {price})")
             order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
@@ -161,26 +192,43 @@ class CCXTExchange(Exchange):
         order.status = Order.Status.PENDING
         self.strategy.logger.info(f"Order posted: {order}")
 
-        threading.Thread(target=self.check_order, args=(now, order), daemon=True).start()  # schedule order check
+        threading.Thread(target=self._check_order, args=(now, order), daemon=True).start()  # schedule periodic order check
         return order
     
-    def check_order(self, now: pd.Timestamp, order: Order, refresh_rate: float = None):
+    def execute(self, now: pd.Timestamp, order: Order) -> Order:
         """
         Args:
-            refresh_rate (float, optional): refresh rate in seconds
+            now (pd.Timestamp):
+            order (Order):
+                
+        Returns:
+            Order
         """
-        refresh_rate = refresh_rate or (self.client.rateLimit / 10 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x100 of it
+        if order.type is Order.Type.LIMIT:
+            return self._execute_limit(now, order)
+        elif order.type is Order.Type.MARKET:
+            return self._execute_market(now, order)
+        raise NotImplementedError
+    
+    def _check_order(self, now: pd.Timestamp, order: Order, frequency: float = None):
+        """
+        Args:
+            frequency (float, optional): refresh rate in seconds
+        """
+        frequency = frequency or (self.client.rateLimit / 10 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x100 of it
 
         while order.status is Order.Status.PENDING:
             self.strategy.logger.debug(f"Checking order: {order}")
             self.update_order(now=now, order=order)
-            time.sleep(refresh_rate)
+            time.sleep(frequency)
         
         self.strategy.logger.debug(f"Checked order: {order}")
 
-    def reflect_account(self, account: Account, ticker: str) -> Account:
+    def reflect_account(self, now: pd.Timestamp, account: Account, ticker: str) -> Account:
         """
         Args:
+            now (pd.Timestamp):
+            account (Account):
             ticker (str): e.g. "USDT/BTC"
         Returns:
             Account
@@ -191,7 +239,7 @@ class CCXTExchange(Exchange):
         base_info = balance.get(base_ticker, {})
 
         if base_total := base_info.get("total", 0):
-            prc = self.get_price(ticker)
+            prc = self.get_price(now, ticker)
             base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_ticker), {})
             base_pos = Position(ticker=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
             quote_pos = Position(ticker=quote_ticker, qty=max(account[quote_ticker].qty - base_total * prc, 0.0))
