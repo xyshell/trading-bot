@@ -7,7 +7,8 @@ import pandas as pd
 
 import tradingbot.util as util
 from tradingbot.strategy import Strategy
-from tradingbot.model import Order, Transaction
+from tradingbot.model import Transaction
+from tradingbot.order import Order
 
 
 logger = logging.getLogger(__name__)

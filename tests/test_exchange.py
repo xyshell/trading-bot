@@ -5,7 +5,8 @@ import pytest
 import ccxt
 
 from tradingbot.exchange.ccxt import CCXTExchange
-from tradingbot.model import Account, Order
+from tradingbot.model import Account
+from tradingbot.order import Order
 
 
 insufficient_funds_response = 'okx {"code":"1","data":[{"clOrdId":"e847386590ce4dBC41721bb12450fd4a","ordId":"","sCode":"51008","sMsg":"Order failed. Insufficient USDT balance in account. ","tag":"e847386590ce4dBC","ts":"1728445289108"}],"inTime":"1728445289108394","msg":"All operations failed","outTime":"1728445289108980"}'
@@ -864,17 +865,18 @@ class TestCCXTExchange:
 
         exchange.strategy = MagicMock()
         exchange.strategy.account = Account.create({"USDT": 1000})
-        exchange.strategy.pending_order = []
+        exchange.strategy.open_order = []
         now = pd.Timestamp("2024-01-01 00:00:00")
         new_order = Order(action="BUY", ticker="USDT/BTC", size_type="PCTG", size=0.5, type="LIMIT", param={"price": 62398.1})
         assert new_order.status is Order.Status.NEW
-        exchange.execute(now=now, order=new_order)
+        exchange.execute(now=now, order=new_order, check=False)
+        exchange.update_order(now=now, order=new_order)
         mock_client.create_order.assert_called_once_with(
             symbol="BTC/USDT", type="limit", side="buy", amount=0.00801306450036139, price=62398.1
         )
         assert new_order.id_ is not None
         assert new_order.status is Order.Status.FILLED
-        assert new_order not in exchange.strategy.pending_order
+        assert new_order not in exchange.strategy.open_order
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_new2pending(self, mock_client):
@@ -884,7 +886,7 @@ class TestCCXTExchange:
 
         exchange.strategy = MagicMock()
         exchange.strategy.account = Account.create({"USDT": 1000})
-        exchange.strategy.pending_order = []
+        exchange.strategy.open_order = []
         now = pd.Timestamp("2024-01-01 00:00:00")
         new_order = Order(action="BUY", ticker="USDT/BTC", size_type="PCTG", size=0.5, type="LIMIT", param={"price": 62398.1})
         assert new_order.status is Order.Status.NEW
@@ -896,7 +898,7 @@ class TestCCXTExchange:
         assert new_order.id_ is not None
         exchange.update_order(now=now, order=new_order)
         assert new_order.status is Order.Status.PENDING
-        assert new_order in exchange.strategy.pending_order
+        assert new_order in exchange.strategy.open_order
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_pending2filled(self, mock_client):
@@ -908,7 +910,7 @@ class TestCCXTExchange:
         exchange.strategy = MagicMock()
         exchange.strategy.account = Account.create({"USDT": 1000})
         now = pd.Timestamp("2024-01-01 00:00:00")
-        pending_order = Order(
+        open_order = Order(
             action="BUY",
             ticker="USDT/BTC",
             size_type="PCTG",
@@ -918,14 +920,14 @@ class TestCCXTExchange:
             status=Order.Status.PENDING,
             id_="1877153720438898689",
         )
-        exchange.strategy.pending_order = [pending_order]
-        exchange.execute(now=now, order=pending_order)
+        exchange.strategy.open_order = [open_order]
+        exchange.execute(now=now, order=open_order)
         mock_client.create_order.assert_not_called()
-        assert pending_order.status is Order.Status.PENDING
-        assert pending_order.id_ is not None
-        exchange.update_order(now=now, order=pending_order)
-        assert pending_order.status is Order.Status.FILLED
-        assert pending_order not in exchange.strategy.pending_order
+        assert open_order.status is Order.Status.PENDING
+        assert open_order.id_ is not None
+        exchange.update_order(now=now, order=open_order)
+        assert open_order.status is Order.Status.FILLED
+        assert open_order not in exchange.strategy.open_order
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_pending2canceled_by_strategy(self, mock_client):
@@ -946,7 +948,7 @@ class TestCCXTExchange:
         )
 
         exchange.strategy = MagicMock()
-        exchange.strategy.pending_order = [order]
+        exchange.strategy.open_order = [order]
         exchange.strategy.order_history = []
         order.status = Order.Status.CANCELED
         now = pd.Timestamp("2024-01-01 00:00:00")
@@ -954,10 +956,10 @@ class TestCCXTExchange:
         exchange.execute(now=now, order=order)
         mock_client.cancel_order.assert_called_once()
         assert order.status is Order.Status.CANCELED
-        assert order in exchange.strategy.pending_order
+        assert order in exchange.strategy.open_order
 
         exchange.update_order(now=now, order=order)
-        assert order not in exchange.strategy.pending_order
+        assert order not in exchange.strategy.open_order
         assert order in [order for _, order in exchange.strategy.order_history]
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
@@ -977,18 +979,18 @@ class TestCCXTExchange:
             id_="1877153720438898689",
         )
         exchange.strategy = MagicMock()
-        exchange.strategy.pending_order = [order]
+        exchange.strategy.open_order = [order]
         exchange.strategy.order_history = []
 
         now = pd.Timestamp("2024-01-01 00:00:00")
         exchange.execute(now=now, order=order)
         mock_client.cancel_order.assert_not_called()
         assert order.status is Order.Status.PENDING
-        assert order in exchange.strategy.pending_order
+        assert order in exchange.strategy.open_order
 
         exchange.update_order(now=now, order=order)
         assert order.status is Order.Status.CANCELED
-        assert order not in exchange.strategy.pending_order
+        assert order not in exchange.strategy.open_order
         assert order in [order for _, order in exchange.strategy.order_history]
 
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
@@ -1009,7 +1011,7 @@ class TestCCXTExchange:
             param={"price": 62398.1},
             status=Order.Status.NEW,
         )
-        exchange.strategy.pending_order = [order]
+        exchange.strategy.open_order = [order]
         exchange.strategy.order_history = []
 
         exchange.execute(now=now, order=order)
@@ -1019,7 +1021,7 @@ class TestCCXTExchange:
 
         exchange.update_order(now=now, order=order)
         assert order.status is Order.Status.REJECTED
-        assert order not in exchange.strategy.pending_order
+        assert order not in exchange.strategy.open_order
         assert order in [order for _, order in exchange.strategy.order_history]
         mock_client.fetch_order_status.assert_not_called()
 
@@ -1050,6 +1052,9 @@ class TestCCXTExchange:
 
     #     order = exchange.client.fetch_order("1877236041473081344", symbol="BTC/USDT")
     #     assert order["status"] == "closed"
+
+    #     with pytest.raises(ccxt.errors.OrderNotFound):  # canceling a closed order raises OrderNotFound
+    #         exchange.client.cancel_order("1877236041473081344", symbol="BTC/USDT")
 
     #     order = exchange.client.fetch_order("1877192719882797056", symbol="BTC/USDT")
     #     assert order["status"] == "open"

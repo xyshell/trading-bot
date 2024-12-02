@@ -1,4 +1,4 @@
-from tradingbot.model import Order
+from tradingbot.order import Order
 
 
 def test_limit_order():
