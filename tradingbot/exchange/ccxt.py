@@ -306,8 +306,8 @@ class CCXTExchange(Exchange):
             Account
         """
         account = copy.deepcopy(account)
-        balance = self.client.fetch_balance()
         quote_ticker, base_ticker = util.get_quote_ticker(ticker), util.get_base_ticker(ticker)
+        balance = self.client.fetch_balance({"ccy": base_ticker})
         base_info = balance.get(base_ticker, {})
 
         if base_total := base_info.get("total", 0):

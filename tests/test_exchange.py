@@ -1083,6 +1083,8 @@ class TestCCXTExchange:
     # def test_fetch_balance(self):
     #     exchange = CCXTExchange()
     #     balance = exchange.client.fetch_balance()
+    #     balance = exchange.client.fetch_balance({"ccy": "BTC"})
+    #     balance = exchange.client.fetch_balance({"ccy": "BTC,ETH"})
         
     #     balance['info']['data'][0]['totalEq']  # total equity
     #     balance['info']['data'][0]['details'][1]  # detail by coin
