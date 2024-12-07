@@ -146,10 +146,10 @@ class CCXTExchange(Exchange):
 
         assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
         assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
-        assert order.status in {Order.Status.NEW, Order.Status.PENDING, Order.Status.CANCELED}, f"Invalid order status: {order.status}"
+        assert order.status in {Order.Status.NEW, Order.Status.PENDING, Order.Status.CANCELED, Order.Status.PARTIAL_FILLED}, f"Invalid order status: {order.status}"
         quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
 
-        if order.status is Order.Status.PENDING:
+        if order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
             return order
         elif order.status is Order.Status.CANCELED:
             try:
