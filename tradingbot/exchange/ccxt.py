@@ -287,7 +287,7 @@ class CCXTExchange(Exchange):
         Args:
             frequency (float, optional): refresh rate in seconds
         """
-        frequency = frequency or (self.client.rateLimit / 10 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x100 of it
+        frequency = frequency or (self.client.rateLimit / 5 + random.randint(1, 10))  # rateLimit is in milliseconds, sleep for x200 of it
 
         while order.status is Order.Status.PENDING:
             self.strategy.logger.debug(f"Checking order: {order}")
