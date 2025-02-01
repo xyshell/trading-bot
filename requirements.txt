@@ -21,7 +21,7 @@ slack_sdk  # optional
 mplfinance==0.12.10b0  # optional
 
 # parallel computing
-dask[complete]==2024.11.2
+dask[complete]==2025.1.0
 
 # dev only
 pytest==8.3.3
