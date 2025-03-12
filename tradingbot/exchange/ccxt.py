@@ -183,7 +183,19 @@ class CCXTExchange(Exchange):
             order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=amount, price=price)
         except ccxt.errors.InsufficientFunds as e:
             self.strategy.logger.warning(f"Order rejected: {order}, due to InsufficientFunds {e}")
-            order.status = Order.Status.REJECTED
+            # TODO: better resizer
+            for multiplier in [0.9, 0.8, 0.7, 0.6, 0.5]:
+                new_amount = amount * multiplier
+                try:
+                    self.strategy.logger.debug(f"Calling client.create_order({symbol}, {type_}, {side}, {new_amount}, {price})")
+                    order_resp = self.client.create_order(symbol=symbol, type=type_, side=side, amount=new_amount, price=price)
+                except ccxt.errors.InsufficientFunds as e:
+                    self.strategy.logger.debug(f"Order rejected: {order}, due to InsufficientFunds {e}")
+                    continue
+                else:
+                    break
+            else:
+                order.status = Order.Status.REJECTED
             return order
         except ccxt.errors.InvalidOrder as e:
             self.strategy.logger.error(f"Order rejected: {order}, due to InvalidOrder {e}")
