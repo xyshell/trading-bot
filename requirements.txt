@@ -1,4 +1,4 @@
-pydantic==2.9.2
+pydantic==2.10.6
 pydantic-settings==2.2.1
 numpy==2.1.2
 pandas==2.2.3
@@ -8,8 +8,8 @@ psutil==6.1.0
 psycopg2==2.9.10
 
 # data
-yfinance==0.2.48  # optional
-python-binance==1.0.22  # optional
+yfinance==0.2.54  # optional
+python-binance==1.0.28  # optional
 
 # exchange
 ccxt==4.4.34  # optional
@@ -21,10 +21,10 @@ slack_sdk  # optional
 mplfinance==0.12.10b0  # optional
 
 # parallel computing
-dask[complete]==2024.11.2
+dask[complete]==2025.2.0
 
 # dev only
-pytest==8.3.3
+pytest==8.3.4
 syrupy==4.8.0
 ruff==0.7.1
 build==1.2.2.post1
