@@ -217,17 +217,42 @@ class LivePipeline(Pipeline):
             strategy.logger.debug(f"{msg}")
             return False
 
-        # make sure status of pending orders are up-to-date
-        for order in strategy.open_order:
-            strategy.exchange.update_order(now, order)
+        # update status of pending orders
+        n = 3
+        while n > 0:
+            try:
+                for order in strategy.open_order:
+                    strategy.exchange.update_order(now, order)
+            except Exception as e:
+                strategy.logger.debug(f"Failed to update order. due to {e!r}. Retrying {n=}...")
+                n -= 1
+                time.sleep(random.randint(1, 5))
+            else:
+                break
+        else:
+            strategy.logger.error("Failed to update order after retries. Delaying to next run.")
+            msg = traceback.format_exc()
+            strategy.logger.debug(f"{msg}")
+            return False
         self._mark_to_market(strategy)
 
         # reflect account
         if self._reflect_account and not isinstance(strategy.exchange, FakeExchange) and (ticker := strategy.param.get("ticker")):
-            try:
-                strategy.account = strategy.exchange.reflect_account(now, strategy.init_account, ticker)
-            except Exception as e:
-                strategy.logger.debug(f"Failed to reflect account. due to {e!r}. Ignored.")
+            n = 3
+            while n > 0:
+                try:
+                    strategy.account = strategy.exchange.reflect_account(now, strategy.init_account, ticker)
+                except Exception as e:
+                    strategy.logger.debug(f"Failed to reflect account. due to {e!r}. Retrying {n=}.")
+                    n -= 1
+                    time.sleep(random.randint(1, 5))
+                else:
+                    break
+            else:
+                strategy.logger.error("Failed to reflect account after retries. Delaying to next run.")
+                msg = traceback.format_exc()
+                strategy.logger.debug(f"{msg}")
+                return False
 
         return True
 
