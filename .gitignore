@@ -1,5 +1,5 @@
 # Project specific
-config.toml
+tradingbot/config.toml
 _version.py
 temp*
 scratch*

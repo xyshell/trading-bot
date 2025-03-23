@@ -3,6 +3,7 @@ from pathlib import Path
 import typing
 
 import numpy as np
+import toml
 from typing_extensions import Annotated
 from pydantic import BaseModel, ConfigDict, Field, computed_field, AfterValidator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
@@ -105,6 +106,13 @@ class Config(BaseSettings):
 
         print(f"Loading config.toml from '{toml_file}'")
         return (env_settings, dotenv_settings, TomlConfigSettingsSource(settings_cls, toml_file))
+
+    def save(self):
+        """Save the current state of the configuration to the TOML file."""
+        toml_file = self.model_config.get("toml_file")
+        if toml_file:
+            with open(toml_file, "w") as f:
+                toml.dump(self.model_dump(), f)
 
 
 class Position(BaseModel):
