@@ -41,6 +41,9 @@ dev = [
     "build >= 1.2, < 2.0",
 ]
 
+[project.scripts]
+trading-bot = "tradingbot.__main__"
+
 [tool.setuptools.package-data]
 tradingbot = ["config_example.toml"]
 

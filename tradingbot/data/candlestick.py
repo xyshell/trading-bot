@@ -2,6 +2,7 @@ import importlib
 import logging
 import warnings
 
+import concurrent
 import requests
 from retry import retry
 from typing_extensions import Annotated
@@ -146,6 +147,44 @@ class Candlestick(Data):
             result = conn.execute(upsert_stmt)
             conn.commit()
             logger.debug(f"upsert affected {result.rowcount} rows in {self.table_name}")
+
+    @classmethod
+    def display(cls, source: str) -> pd.DataFrame:
+        """Display basic stats of candlestick data
+        
+        Args:
+            source (str): source name
+        
+        Returns:
+            pd.DataFrame
+        """
+        engine = Database.get_engine(tb.config.general.db_url)
+        metadata = sa.MetaData()
+        metadata.reflect(engine)
+        tables = [table_name for table_name in metadata.tables.keys() if table_name.startswith(f"candlestick_{source}")]
+        freqs = [table_name.split("_")[-1] for table_name in tables]
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {}
+            for freq in freqs:
+                table = Database.get_data_table(cls, f"candlestick_{source}_{freq}")
+                query = (
+                    sa.select(
+                        table.c.ticker, 
+                        sa.func.min(table.c.close_time).label("close_time_min"), 
+                        sa.func.max(table.c.close_time).label("close_time_max"), 
+                        sa.func.count(table.c.close_time).label("close_time_count"),
+                        sa.func.avg(table.c.close).label("close_avg"),
+                        sa.func.avg(table.c.base_volume).label("base_volume_avg")
+                    )
+                    .group_by(table.c.ticker)
+                    .order_by(table.c.ticker)
+                )
+                futures[freq] = executor.submit(pd.read_sql, query, con=engine.connect())
+        df = pd.concat({freq: future.result().set_index("ticker") for freq, future in futures.items()})
+        df.index.rename("freq", level=0, inplace=True)
+        df = df.swaplevel(0, 1).sort_values("close_time_max", ascending=False).reset_index()
+        return df
 
 
 class YahooCandlestick(Candlestick):
