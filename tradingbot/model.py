@@ -33,6 +33,8 @@ TimedeltaType = Annotated[str | pd.Timedelta, AfterValidator(check_timedelta)]
 class Config(BaseSettings):
     class _GeneralConfig(BaseModel):
         db_url: str = Field(default=f"sqlite:///{Path(__file__).parent / 'tradingbot.db'}")
+        strategy_dir: str = Field(default=Path(__file__).parent / 'strategy')
+        log_dir: str = Field(default=Path(__file__).parent / 'logs')
         http_proxy: str | None = Field(default=None)
         https_proxy: str | None = Field(default=None)
         dask_scheduler_url: str | None = Field(default=None)

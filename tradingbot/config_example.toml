@@ -1,5 +1,7 @@
 [general]
 db_url = "sqlite:///:memory:" # override path for local db, e.g. "sqlite:///D:\\tradingbot.db"
+# strategy_dir = ""  # override path for strategy directory
+# log_dir = ""  # override path for log directory
 # http_proxy = "http://127.0.0.1:7890"
 # https_proxy = "http://127.0.0.1:7890"
 

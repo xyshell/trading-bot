@@ -28,12 +28,20 @@ def display_config(config, flavor="form"):
             sec_general = "general"
             st.subheader(sec_general, divider=True)
             config_general = config[sec_general]
+            if "log_dir" not in config_general:
+                config_general["log_dir"] = pathlib.Path(__file__).parent.parent.parent / "logs"
+            if "strategy_dir" not in config_general:
+                config_general["strategy_dir"] = pathlib.Path(__file__).parent.parent.parent / "strategy"
             for key, value in config_general.items():
                 col1, col2 = st.columns([1, 4])
                 with col1:
                     st.text(f"{key}:")
                 with col2:
-                    config[sec_general][key] = st.text_input(key, value, label_visibility="collapsed")
+                    config[sec_general][key] = st.text_input(
+                        key,
+                        value,
+                        label_visibility="collapsed",
+                    )
 
             # source
             sec_source = "source"
@@ -81,20 +89,19 @@ def display_config(config, flavor="form"):
                         st.text(f"{key}:")
                     with col2:
                         config_notification[key.split(".")[0]][key.split(".")[1]] = st.text_input(
-                            key,
-                            value,
-                            label_visibility="collapsed",
-                            type="password" if "token" in key else "default",
+                            key, value, label_visibility="collapsed", type="password" if "token" in key else "default"
                         )
 
             col1, col2 = st.columns([1, 1], gap="small")
             with col1:
+
                 @st.dialog("Configuration saved successfully!")
                 def show_dialog():
                     st.write(f"Saved to: {st.session_state['config_file_path']}")
                     button_ok = st.button("Ok", use_container_width=True, type="primary")
                     if button_ok:
                         st.rerun()
+
                 button_save = st.form_submit_button("Save", use_container_width=True, type="primary", on_click=show_dialog)
                 if button_save:
                     with open(config_file_path, "w") as f:

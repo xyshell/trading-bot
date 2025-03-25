@@ -1,4 +1,5 @@
 import logging.config
+import pathlib
 
 from ._version import __version__
 from .data import Data
@@ -27,6 +28,12 @@ def _print_version():
 _print_version()
 
 config = Config()
+if not config.general.log_dir:
+    log_dir = pathlib.Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    for key, value in config.logging.handlers.items():
+        if "filename" in value:
+            value["filename"] = log_dir / value["filename"]
 logging.config.dictConfig(config.logging)
 
 __all__ = [
