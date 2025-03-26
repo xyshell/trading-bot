@@ -11,12 +11,14 @@ from retry import retry
 
 import tradingbot as tb
 import tradingbot.util as util
-from tradingbot.exchange.core import Exchange, FutureExchange
-from tradingbot.model import Account, Position, Transaction
+from tradingbot.exchange.core import RealExchange
+from tradingbot.account import Account
+from tradingbot.position import Position, SpotPosition
+from tradingbot.transaction import Transaction
 from tradingbot.order import Order
 
 
-class CCXTExchange(Exchange):
+class CCXTExchange(RealExchange):
     def __init__(self, name: str = None, **kwargs):
         config = tb.config
         self._name = name or config.exchange.ccxt.name
@@ -34,10 +36,20 @@ class CCXTExchange(Exchange):
 
     @staticmethod
     def get_symbol(ticker: str) -> str:
+        """currency quote: USDT/BTC -> CCXT symbol: BTC/USDT"""
         return "/".join(ticker.split("/")[::-1])
 
     @functools.lru_cache(maxsize=128)
     def get_price(self, now: pd.Timestamp, ticker: str) -> float:
+        """Get current price for a ticker 
+        
+        Args:
+            now (pd.Timestamp): not used but required for caching purposes
+            ticker (str): e.g. "USDT/BTC"
+
+        Returns:
+            float
+        """
         return self.client.fetch_ticker(self.get_symbol(ticker))["last"]
 
     @retry((requests.exceptions.ReadTimeout, requests.exceptions.ProxyError, requests.exceptions.ConnectionError,
@@ -227,55 +239,6 @@ class CCXTExchange(Exchange):
                 
             threading.Thread(target=_check_order, args=(now, order), daemon=True).start()  # schedule periodic order check
         return order
-    
-    def _execute_trailing_limit(self, now: pd.Timestamp, order: Order) -> Order:
-        assert order.type is Order.Type.TRAILING_LIMIT
-
-        init_now = now
-        init_order = copy.deepcopy(order)  # make a limit order from trailing order
-        init_order.type = Order.Type.LIMIT
-        init_order.param = {"price": self.get_price(now, order.ticker) * order.param["offset"]}
-        init_order = self._execute_limit(now, init_order, check=False)
-        self.update_order(now=now, order=init_order)
-
-        prev_order, next_order = copy.deepcopy(init_order), copy.deepcopy(init_order)
-        if init_order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
-            interval_td = pd.Timedelta(order.param["interval"])
-            interval_sec = interval_td.total_seconds()
-            time.sleep(interval_sec)
-            now += interval_td
-
-            while prev_order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
-                prev_order.cancel(self, now=now)
-                order_info = self.client.fetch_order(prev_order.id_, symbol=self.get_symbol(order.ticker))
-                if order_info["status"] == "closed": 
-                    break
-
-                next_order = Order(
-                    ticker=order.ticker, 
-                    type=Order.Type.LIMIT,
-                    action=order.action, 
-                    size_type=Order.SizeType.BASE, 
-                    size=order_info["remaining"], 
-                    param={"price": self.get_price(now, order.ticker) * order.param["offset"]}
-                )
-                next_order = self._execute_limit(now, next_order, check=False)
-                self.strategy.logger.debug(
-                    f"trailing limit replaced: prev_order=({prev_order.param['price']}, {prev_order.size}) -> next_order=({next_order.param['price']}, {next_order.size})"
-                )
-
-                time.sleep(interval_sec)
-                now += interval_td
-
-                self.update_order(now=now, order=next_order)
-                prev_order = next_order
-
-        order.status = prev_order.status
-        order.id_ = prev_order.id_ 
-        self.strategy.logger.info(f"trailing limit completed in {(now - init_now).total_seconds() / 60 :.2f} mins: {order=}")
-        if order in self.strategy.open_order:
-            self.strategy.open_order.remove(order)
-        return order
 
     def execute(self, now: pd.Timestamp, order: Order, **kwargs) -> Order:
         """
@@ -290,8 +253,6 @@ class CCXTExchange(Exchange):
             return self._execute_limit(now, order, **kwargs)
         elif order.type is Order.Type.MARKET:
             return self._execute_market(now, order)
-        elif order.type is Order.Type.TRAILING_LIMIT:
-            return self._execute_trailing_limit(now, order)
         raise NotImplementedError
     
     def _check_order(self, now: pd.Timestamp, order: Order, frequency: float = None):
@@ -307,6 +268,20 @@ class CCXTExchange(Exchange):
             time.sleep(frequency)
         
         self.strategy.logger.debug(f"Checked order: {order}")
+
+
+    def get_position(self, asset: str, now: pd.Timestamp | None = None, **kwargs) -> Position:
+        """Get current position for an asset
+        
+        Args:
+            asset (str): e.g. "USDT"
+
+        Returns:
+            Position
+        """
+        now = now or util.get_random_timestamp()
+        balance = self.fetch_balance(now, **kwargs)[asset]
+        return Position(asset=asset, qty=balance)
 
     def reflect_account(self, now: pd.Timestamp, account: Account, ticker: str) -> Account:
         """
@@ -325,12 +300,72 @@ class CCXTExchange(Exchange):
         if base_total := base_info.get("total", 0):
             prc = self.get_price(now, ticker)
             base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_ticker), {})
-            base_pos = Position(ticker=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
-            quote_pos = Position(ticker=quote_ticker, qty=max(account[quote_ticker].qty - base_total * prc, 0.0))
+            base_pos = Position(asset=base_ticker, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
+            quote_pos = Position(asset=quote_ticker, qty=max(account[quote_ticker].qty - base_total * prc, 0.0))
             account[base_ticker] = base_pos
             account[quote_ticker] = quote_pos
 
         return account
 
-class CCXTFutureExchange(CCXTExchange, FutureExchange):
-    pass
+    def ping(self) -> bool:
+        return "ok" in self.client.fetch_status()
+
+    # ------------------------------------- wrapper methods -------------------------------------
+    def fetch_balance(self, balance_type: str = "total") -> dict:
+        """Fetch current balance
+        
+        Args:
+            balance_type (str): "total", "free", "used"
+        
+        Returns:
+            dict
+        """
+        return self.client.fetch_balance()[balance_type]
+
+    @functools.lru_cache(maxsize=1)
+    def _load_markets(self) -> dict:
+        return self.client.load_markets()
+
+    def load_markets(self, market_type: str | None = None) -> dict:
+        """
+
+        Args:
+            market_type (str): "spot", "future", "swap", "option", defaults to load all
+
+        Returns:
+            dict
+        """
+        markets = self._load_markets()
+        spot_markets = {k.replace(f"{v['base']}/{v['quote']}", f"{v['quote']}/{v['base']}"): v for k, v in markets.items() if v["type"] == "spot"}  # BTC/USDT (base/quote)
+        future_markets = {k.replace(f"{v['base']}/{v['quote']}", f"{v['quote']}/{v['base']}"): v for k, v in markets.items() if v["type"] == "future"}  # BTC/USDT:USDT-250404 (base/quote:settle-date)
+        swap_markets = {k.replace(f"{v['base']}/{v['quote']}", f"{v['quote']}/{v['base']}"): v for k, v in markets.items() if v["type"] == "swap"}  # BTC/USDT:USDT (base/quote:settle)
+        option_markets = {k.replace(f"{v['base']}/{v['quote']}", f"{v['quote']}/{v['base']}"): v for k, v in markets.items() if v["type"] == "option"}  # BTC/USD:BTC-250404-83000-C (base/quote:settle-date-strike-C/P)
+        
+        # flip base/quote to quote/base
+        match market_type:
+            case "spot":
+                return spot_markets
+            case "future":
+                return future_markets
+            case "swap":
+                return swap_markets
+            case "option":
+                return option_markets
+            case None:
+                return spot_markets | future_markets | swap_markets | option_markets
+            case _:
+                raise NotImplementedError
+
+    @functools.cached_property
+    def ticker2symbol(self) -> dict[str, str]:
+        markets = self.load_markets()
+        return {k: v["symbol"] for k, v in markets.items()}
+
+    @functools.cached_property
+    def symbol2ticker(self) -> dict[str, str]:
+        return {v: k for k, v in self.ticker2symbol.items()}
+
+    def fetch_tickers(self, tickers: list[str]) -> dict:
+        symbols = [self.ticker2symbol[ticker] for ticker in tickers]
+        status = self.client.fetch_tickers(symbols)
+        return {self.symbol2ticker[k]: v for k, v in status.items()}

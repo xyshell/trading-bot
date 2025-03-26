@@ -3,7 +3,7 @@ from typing import Sequence
 
 
 import tradingbot as tb
-from tradingbot.model import MarginAccount
+from tradingbot.account import Account
 from tradingbot.order import Order
 import tradingbot.util as util
 
@@ -280,7 +280,6 @@ class TestBacktestSpotStrategy:
         bot = tb.Bot(
             mode="backtest",  # or "live"
             start="2024-01-01", end="2024-01-10",  # for backtest mode
-            preload=True,
         )
         # fmt: on
         bot.data = {
@@ -307,7 +306,7 @@ class TestBacktestFutureStrategy:
         }
         bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=10)
-        bot.account = MarginAccount.create({"USDT": 1_000})
+        bot.account = Account.create({"USDT": 1_000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -325,7 +324,7 @@ class TestBacktestFutureStrategy:
         }
         bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=100)  # 100x leverage
-        bot.account = MarginAccount.create({"USDT": 1_000})
+        bot.account = Account.create({"USDT": 1_000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -364,7 +363,7 @@ class TestBacktestFutureStrategy:
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
         bot.strategy = Test()
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.001, leverage=10)
-        bot.account = tb.MarginAccount.create({"USDT": 1000})
+        bot.account = tb.Account.create({"USDT": 1000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot

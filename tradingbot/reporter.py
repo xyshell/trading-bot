@@ -1,3 +1,4 @@
+from dataclasses import asdict, fields
 import math
 import types
 import logging
@@ -7,7 +8,7 @@ import pandas as pd
 
 import tradingbot.util as util
 from tradingbot.strategy import Strategy
-from tradingbot.model import Transaction
+from tradingbot.transaction import Transaction
 from tradingbot.order import Order
 
 
@@ -17,16 +18,13 @@ logger = logging.getLogger(__name__)
 class Reporter:
     @staticmethod
     def get_position_report(strategy: Strategy) -> pd.DataFrame:
-        if not strategy.account_history:
+        if not strategy.balance_history:
             return pd.DataFrame()
         position_report = {}
-        for timestamp, account in strategy.account_history.items():
-            position_report[timestamp] = pd.concat(
-                {pos.ticker: pd.Series(pos.model_dump(exclude="ticker")) for pos in account.position}
-            )
+        for timestamp, balance in strategy.balance_history.items():
+            position_report[timestamp] = pd.Series(balance)
         position_report = pd.concat(position_report).unstack()
-        position_report.index.rename(["timestamp", "ticker"], inplace=True)
-        position_report.rename(columns={"prc": "entry_prc"}, inplace=True)
+        position_report.index.rename("timestamp", inplace=True)
         return position_report
 
     @staticmethod
@@ -37,11 +35,17 @@ class Reporter:
         # cash_component = (
         #     position_report.loc[position_report["market_val"].isna(), "qty"].groupby(["timestamp", "ticker"]).sum().unstack()
         # )  # should be unnecessary after defaulting market_prc = 1.0
-        if "margin" in position_report.columns:
-            nav = position_report["margin"].apply(pd.Series)[1].fillna(position_report["market_val"])
-            nav *= np.where(position_report['qty'] >= 0, 1, -1)
-        else:
-            nav = position_report["market_val"]
+        # if "margin" in position_report.columns:
+        #     nav = position_report["margin"].apply(pd.Series)[1].fillna(position_report["market_val"])
+        #     nav *= np.where(position_report['qty'] >= 0, 1, -1)
+        # else:
+        #     nav = position_report["market_val"]
+        # WIP
+        price = pd.concat([
+            pd.concat([candle['close_time'], candle['close'].rename(candle.ticker)], axis=1).set_index("close_time") 
+            for candle in strategy.data.ticker2candle.values()
+        ], axis=1)
+        position_report
         portfolio_report = nav.groupby(["timestamp", "ticker"]).sum().unstack().fillna(0.0)
         portfolio_report.insert(0, "nav", portfolio_report.abs().sum(axis=1))
         return portfolio_report
@@ -49,20 +53,12 @@ class Reporter:
     @staticmethod
     def get_transaction_report(strategy: Strategy) -> pd.DataFrame:
         if not strategy.transaction_history:
-            field = Transaction.model_fields.copy()
-            del field["from_"], field["to_"], field["tcost"]
-            return pd.DataFrame(columns=list(field) + ["from_ticker", "from_qty", "to_ticker", "to_qty", "tcost_ticker", "tcost_qty"])
+            field = {f.name: f for f in fields(Transaction)}
+            del field["from_asset"], field["from_asset"], field["tcost"]
+            return pd.DataFrame(columns=list(field) + ["from_asset", "from_qty", "to_asset", "to_qty", "cost_asset", "cost_qty"])
         transaction_report = pd.DataFrame([
-            pd.Series(trans.model_dump(mode="json")) for trans in strategy.transaction_history
+            pd.Series(asdict(trans)) for trans in strategy.transaction_history
         ]).set_index("timestamp")
-        transaction_report[["from_ticker", "from_qty"]] = pd.DataFrame(
-            transaction_report["from_"].tolist(), index=transaction_report.index
-        )
-        transaction_report[["to_ticker", "to_qty"]] = pd.DataFrame(transaction_report["to_"].tolist(), index=transaction_report.index)
-        transaction_report[["tcost_ticker", "tcost_qty"]] = pd.DataFrame(
-            transaction_report["tcost"].tolist(), index=transaction_report.index
-        )
-        transaction_report.drop(columns=["from_", "to_", "tcost"], inplace=True)
         return transaction_report
 
     @staticmethod
@@ -205,6 +201,6 @@ class Reporter:
         strategy.report["position"] = Reporter.get_position_report(strategy)
         strategy.report["portfolio"] = Reporter.get_portfolio_report(strategy)
         strategy.report["transaction"] = Reporter.get_transaction_report(strategy)
-        strategy.report["order"] = Reporter.get_order_report(strategy)
+        # strategy.report["order"] = Reporter.get_order_report(strategy)
         strategy.report["trade"] = Reporter.get_trade_report(strategy)
         strategy.report["stats"] = Reporter.get_stats_report(strategy)

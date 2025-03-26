@@ -7,27 +7,37 @@ import pandas as pd
 
 from tradingbot.data.candlestick import Candlestick
 import tradingbot.util as util
-from tradingbot.model import Account, Transaction
+from tradingbot.balance import Balance
+from tradingbot.transaction import Transaction
 from tradingbot.order import Order
+from tradingbot.data.core import Data
 
 
 class Strategy(abc.ABC):
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        
+        # ensure cls.param
         if not hasattr(cls, "param"):
             cls.param = {}
+        else:
+            assert isinstance(cls.param, dict), f"param must be dict, but {cls.param=}"
 
     def __init__(self, **kwargs):
         self.param = self.__class__.param.copy()
-        self.param.update(kwargs)
+        self.param.update(kwargs)  # override default param
 
-        self.open_order: list[Order] = []  # keep track of all open orders
-        self.order_history: list[tuple[pd.Timestamp, Order]] = []  # record all filled orders
+        # self.orders: list[Order] = []  # keep track of all open orders, TODO: consider order as low-level API and moving to trader
+        # self.order_history: list[Order] = []  # record all filled orders
+        self.balance: Balance # current balance
+        self.balance_history: dict[pd.Timestamp, Balance] = {}  # record all positions
         self.transaction_history: list[Transaction] = []  # record all transactions
-        self.init_account: Account  # initial account
-        self.account: Account  # current account
-        self.account_history: dict[pd.Timestamp, list[Account]] = {}  # record all positions
+        self.store: dict[str, any] = {}  # store any user custom values
+        self.store_history: dict[pd.Timestamp, dict[str, any]] = {}  # record all stores
         self.report: dict[str, pd.DataFrame] = {}  # save report
+        self.now = None
+        self.data: dict[str, Data]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.param})"
@@ -38,7 +48,10 @@ class Strategy(abc.ABC):
         )
 
     def start(self):
-        pass
+        self.logger = logging.getLogger(str(self))
+        # reset triggers
+        for tri in self.next.trigger:
+            tri.checked.clear()
 
     @abc.abstractmethod
     def next(self):

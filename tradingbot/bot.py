@@ -9,74 +9,53 @@ import warnings
 
 import pandas as pd
 import sqlalchemy as sa
+from dask.distributed import Client, LocalCluster, fire_and_forget, wait
 
-from tradingbot.exchange.fake import FakeExchange
 import tradingbot.util as util
-from tradingbot.model import Account, MarginAccount, ModeType, DatetimeType
-from tradingbot.pipeline import BacktestPipeline, LivePipeline
-from tradingbot.data.core import Data, DataManager
+from tradingbot.util import ModeType, DatetimeType
+from tradingbot.pipeline import Pipeline, BacktestPipeline, LivePipeline
 from tradingbot.strategy import Strategy
-from tradingbot.exchange import Exchange
 from tradingbot.database import Database
+from tradingbot.config import Config
+
 
 logger = logging.getLogger(__name__)
 
 
 class Bot:
+
     @util.validate
     def __init__(
         self,
         mode: ModeType,
         now_factory: Callable[[], pd.Timestamp] = util.utc_now_factory,
         *_,
-        # backtest mode
+        # for backtest mode
         start: DatetimeType | None = None,
         end: DatetimeType | None = None,
-        preload: bool = False,
         # live mode
-        refresh_rate: float = 0.0,
-        reflect_account: bool = True,
+        response_rate: float = 0.0,
         **kwargs,
     ):
         """
         Args:
             mode (str): "backtest" or "live"
             now_factory (Callable, optional): function to get current time. Defaults to pd.Timestamp.utcnow().tz_localize(None).
-            
+
             # backtest mode
-            preload (bool, optional): whether to preload data to speed up in backtest mode 
             start (str | datetime.datetime | pd.Timestamp, optional): backtest start time
             end (str | datetime.datetime | pd.Timestamp, optional): backtest end time
 
             # live mode
-            refresh_rate (float, optional): refresh rate in seconds.
-            reflect_account (bool, optional): whether to reflect from actual account in live mode
+            response_rate (float, optional): refresh rate in seconds.
         """
         self._mode = mode
-        self._pipeline = (
-            BacktestPipeline(now_factory, start=start, end=end, **kwargs)
-            if mode == "backtest"
-            else LivePipeline(now_factory, refresh_rate=refresh_rate, reflect_account=reflect_account, **kwargs)
-        )
+        self._now_factory = now_factory
         self._start = start
         self._end = end
-        self._now_factory = now_factory
-        self._preload = preload
-        self._reflect_account = reflect_account
+        self._response_rate = response_rate
 
-        self._data: dict[str, Data] = {}
-        self._strategy: Strategy = None
-        self._exchange: Exchange = None
-        self._account: Account = None
-        if data := kwargs.pop("data", None):
-            self.data = data
-        if strategy := kwargs.pop("strategy", None):
-            self.strategy = strategy
-        if exchange := kwargs.pop("exchange", None):
-            self.exchange = exchange
-        if account := kwargs.pop("account", None):
-            self.account = account
-
+        self._strategies: list[Strategy] = []
         self._id = str(uuid.uuid4())
         logger.debug(f"Bot(ID={id(self)}) Created: Mode='{self._mode}'")
 
@@ -84,65 +63,63 @@ class Bot:
     def mode(self) -> ModeType:
         return self._mode
 
-    @property
-    def data(self) -> dict[str, Data]:
-        return self._data
-
-    @data.setter
     @util.validate
-    def data(self, value: dict[str, Data]):
-        self._data = DataManager(value, mode=self._mode)
-
-    @property
-    def strategy(self) -> Strategy | dict[str, Strategy]:
-        return self._strategy
-
-    @strategy.setter
-    @util.validate
-    def strategy(self, strategy: Strategy | dict[str, Strategy]):
-        self._strategy = strategy
+    def add_strategy(self, strategy: Strategy) -> None:
+        strategy.mode = self._mode
+        strategy.trader.mode = self._mode
+        for data in strategy.data.values():
+            data.mode = self._mode
+        self._strategies.append(strategy)
 
     @property
-    def exchange(self) -> Exchange:
-        return self._exchange
-
-    @exchange.setter
-    @util.validate
-    def exchange(self, exchange: Exchange):
-        self._exchange = exchange
+    def strategies(self) -> list[Strategy]:
+        return self._strategies
 
     @property
-    def account(self) -> Account | MarginAccount:
-        return self._account
+    def strategy(self) -> Strategy:
+        return self._strategies[0]
 
-    @account.setter
-    @util.validate
-    def account(self, wealth: dict | Account | MarginAccount):
-        self._account = Account.create(wealth) if isinstance(wealth, dict) else wealth
-
-    def run(self, plot: bool | dict = False, **kwargs) -> None:
-        """Run the bot.
+    def run(self, cluster=None, **kwargs) -> None:
+        """Run the bot
+        
         Args:
-            plot (bool | dict, optional): if True, plot results. Defaults to False.
+            cluster (Cluster, optional): run the bot on a dask cluster instance if specified.
         """
-        strategy = self._strategy
-        # set strategy
-        strategy.data = self._data
-        strategy.exchange = self._exchange
-        strategy.init_account = self._account
-        strategy.account = self._account
-        # set exchange
-        self._exchange.strategy = strategy
+        pipeline = (
+            BacktestPipeline(
+                self._now_factory, 
+                start=self._start, 
+                end=self._end, 
+            )
+            if self._mode == "backtest"
+            else LivePipeline(
+                self._now_factory,
+                response_rate=self._response_rate,
+            )
+        )
 
-        if self.mode == "backtest":
-            assert isinstance(strategy.exchange, FakeExchange), "Can't use real exchange in backtest mode"
-        # run pipeline
-        self._pipeline.run(strategy, plot=plot, preload=self._preload, **kwargs)
+        def task(pipeline: Pipeline, strategy: Strategy) -> Strategy:
+            pipeline.run(strategy)
+            return strategy
+
+        if cluster is None:
+            for i, strat in enumerate(self._strategies):
+                self._strategies[i] = task(pipeline, strat)
+        else:
+            strategy_str = [str(strat) for strat in self._strategies]
+            assert len(set(strategy_str)) == len(self._strategies), f"str(strategy) must be unique, got {strategy_str}"
+
+            self._dask_client = Client(cluster)
+            self._dask_client.forward_logging("tradingbot")
+            logger.info(f"Cluster Dashboard: {cluster.dashboard_link}")
+
+            futures = {str(strat): self._dask_client.submit(task, pipeline, strat) for strat in self._strategies}
+            results = self._dask_client.gather(futures)
+            self._strategies = [results[str(strat)] for strat in self._strategies]
 
     def optimize(
         self,
         strategy: dict[str, Strategy],
-        engine: str = "dask",
         errors: str = "warn",
         persist: bool = True,
         if_exists: str = "ignore",
@@ -156,7 +133,6 @@ class Bot:
         """optimize multiple strategies
         Args:
             strategy (dict[str, Strategy]): strategies to optimize
-            engine (str, optional): "dask". Defaults to "dask".
             errors (str, optional): "ignore", "warn" or "raise"
             persist (bool, optional): persist results to database. Defaults to True. if True, results are not returned.
             if_exists (str, optional): only when persist is True, what to do if the key already exists in opt result table.
@@ -164,15 +140,13 @@ class Bot:
             remote (bool, optional): if True, run on remote cluster. Defaults to False.
             restart (bool, optional): if True, restart cluster. Defaults to False.
             block (bool, optional): if True, block until finished. Defaults to False.
-            scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml dask_scheduler_url.
+            scheduler_url (str, optional): dask scheduler url. Defaults to use config.toml cluster_url.
             n_workers (int, optional): only when scheduler_url is None, specify number of workers using LocalCluster. Defaults to os.cpu_count().
             **kwargs: passed to bot.run(**kwargs)
         """
-        assert engine == "dask", f"only engine='dask' is supported, got {engine=}"
-        from dask.distributed import Client, LocalCluster, fire_and_forget, wait
-        from tradingbot import config
+        config = Config()
 
-        scheduler_url = scheduler_url or config.general.dask_scheduler_url
+        scheduler_url = scheduler_url or config.general.cluster_url
         if not remote or not scheduler_url:
             client = Client(LocalCluster(n_workers=n_workers))
         else:
@@ -217,9 +191,7 @@ class Bot:
                 stats["strategy"] = str(stats["strategy"])
                 sqlalchemy_dialect = importlib.import_module(f"sqlalchemy.dialects.{engine.dialect.name}")
                 insert = sqlalchemy_dialect.insert
-                insert_stmt = insert(table).values(
-                    {"key": key, "strategy": strat.__class__.__name__, "stats": stats.to_json()}
-                )
+                insert_stmt = insert(table).values({"key": key, "strategy": strat.__class__.__name__, "stats": stats.to_json()})
                 upsert_stmt = insert_stmt.on_conflict_do_update(
                     index_elements=[table.c.key], set_={col.key: col for col in table.columns if col not in [table.c.key]}
                 )
@@ -266,7 +238,7 @@ class Bot:
             for name, res in zip(strategy.keys(), results):
                 strategy[name] = res
             self.strategy = strategy
-        
+
         if client.cluster is not None:
             client.cluster.close()
         client.close()

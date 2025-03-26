@@ -9,9 +9,9 @@ from typing_extensions import Annotated
 import pandas as pd
 import sqlalchemy as sa
 
-import tradingbot as tb
 import tradingbot.util as util
-from tradingbot.model import ModeType
+from tradingbot.config import Config
+from tradingbot.util import ModeType
 from tradingbot.data.core import Data
 from tradingbot.database import Database
 
@@ -100,7 +100,8 @@ class Candlestick(Data):
         load_len = kwargs.pop("load_len", self.load_len)
         since = kwargs.pop("since", None)
 
-        engine = Database.get_engine(tb.config.general.db_url)
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
         table = Database.get_data_table(self.__class__, self.table_name)
 
         sql = (
@@ -120,7 +121,8 @@ class Candlestick(Data):
         return df.reset_index(drop=True)
 
     def set(self, now: pd.Timestamp, df: pd.DataFrame, **kwargs) -> None:
-        engine = Database.get_engine(tb.config.general.db_url)
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
         table = Database.get_data_table(self.__class__, self.table_name)
 
         df = df.loc[df["close_time"] <= now].copy()  # only save closed candles
@@ -158,7 +160,8 @@ class Candlestick(Data):
         Returns:
             pd.DataFrame
         """
-        engine = Database.get_engine(tb.config.general.db_url)
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
         metadata = sa.MetaData()
         metadata.reflect(engine)
         tables = [table_name for table_name in metadata.tables.keys() if table_name.startswith(f"candlestick_{source}")]
@@ -247,7 +250,7 @@ class BinanceCandlestick(Candlestick):
         **kwargs,
     ):
         super().__init__(ticker=ticker, freq=freq, **kwargs)
-        config = tb.config
+        config = Config()
         self._api_key = api_key or config.source.binance.api_key
         self._api_secret = api_secret or config.source.binance.api_secret
         self._http_proxy = http_proxy or config.general.http_proxy
@@ -317,7 +320,7 @@ class OkxCandlestick(Candlestick):
 
     def __init__(self, *_, ticker: str, freq: str, http_proxy: str = None, https_proxy: str = None, **kwargs):
         super().__init__(ticker=ticker, freq=freq, **kwargs)
-        config = tb.config
+        config = Config()
         self._http_proxy = http_proxy or config.general.http_proxy
         self._https_proxy = https_proxy or config.general.https_proxy
 

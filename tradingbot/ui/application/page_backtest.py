@@ -8,12 +8,11 @@ import streamlit as st
 
 import tradingbot.util as util
 from tradingbot.strategy import Strategy
-from tradingbot.model import Config
+from tradingbot.config import Config
 tbconfig = Config()
 
 with st.sidebar:
     strategy_dir = st.text_input("Strategy directory: ", value=tbconfig.general.strategy_dir, disabled=True, help="Configured in Setting -> Config -> general -> strategy_dir")
-    hide_demo_strategy = st.checkbox("Hide demo strategy", value=True)
 
     # Iterate through the directory and import all .py files
     for filename in os.listdir(strategy_dir):
@@ -31,10 +30,7 @@ with st.sidebar:
                 # If the module is already imported, reuse it from sys.modules
                 module = sys.modules[module_name]
     
-    strategy_cls = [kls for kls in Strategy.__subclasses__()]
-    if hide_demo_strategy:
-        strategy_cls = [kls for kls in strategy_cls if not kls.__module__.startswith("tradingbot.strategy")]
-
+    strategy_cls = [kls for kls in Strategy.__subclasses__() if not kls.__module__.startswith("tradingbot.strategy")]
     strategy = {f"{kls.__name__} @ {kls.__module__}": kls for kls in strategy_cls}
 
     strategy_key = st.radio("Strategy: ", strategy)

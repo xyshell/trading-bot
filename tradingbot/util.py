@@ -6,6 +6,10 @@ import pathlib
 import time
 import types
 import functools
+import numpy as np
+from typing_extensions import Annotated
+
+from pydantic import AfterValidator
 import sqlalchemy as sa
 import pandas as pd
 
@@ -13,6 +17,36 @@ import pydantic
 
 validate = pydantic.validate_call(config=dict(arbitrary_types_allowed=True))
 
+
+# class ValidatedAttribute:
+#     def __init__(self, name):
+#         self.name = f"_{name}"
+
+#     def __get__(self, instance, _):
+#         if instance is None:
+#             return self
+#         return getattr(instance, self.name)
+
+#     @validate
+#     def __set__(self, instance, value):
+#         setattr(instance, self.name, value)
+
+
+def check_mode(v: str) -> str:
+    assert v in {"backtest", "paper","live"}, f"mode must be one of 'backtest', 'paper', 'live', got {v}"
+    return v
+
+
+def check_datetime(v: str) -> pd.Timestamp:
+    return pd.Timestamp(v)
+
+
+def check_timedelta(v: str) -> pd.Timedelta:
+    return pd.Timedelta(v)
+
+ModeType = Annotated[str, AfterValidator(check_mode)]
+DatetimeType = Annotated[str | pd.Timestamp, AfterValidator(check_datetime)]
+TimedeltaType = Annotated[str | pd.Timedelta, AfterValidator(check_timedelta)]
 
 TYPE_MAPPING = {float: sa.Float, int: sa.Integer, str: sa.String, pd.Timestamp: sa.DateTime}
 
@@ -166,3 +200,8 @@ def timeit(func):
         print(f"{func.__name__} took {(toc-tic):.2f} seconds.")
         return result
     return wrapper
+
+
+def get_random_timestamp() -> pd.Timestamp:
+    """Get a random timestamp from 1970-01-01 to 2000-01-01"""
+    return pd.Timestamp(np.random.randint(0, 946684800), unit="s")

@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 import ccxt
 
-from tradingbot.exchange.ccxt import CCXTExchange
-from tradingbot.model import Account
+from tradingbot.exchange import CCXTExchange
+from tradingbot.account import Account
 from tradingbot.order import Order
 
 

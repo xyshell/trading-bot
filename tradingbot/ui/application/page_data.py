@@ -12,7 +12,7 @@ import numpy as np
 
 import tradingbot.util as util
 import tradingbot.data as tbdata
-from tradingbot.model import Config
+from tradingbot.config import Config
 
 tbconfig = Config()
 

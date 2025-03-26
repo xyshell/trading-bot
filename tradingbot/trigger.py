@@ -7,7 +7,7 @@ from typing import Self
 import pandas as pd
 
 
-from tradingbot.model import TimedeltaType
+from tradingbot.util import TimedeltaType
 import tradingbot.util as util
 
 
@@ -18,8 +18,8 @@ class Trigger(abc.ABC):
     def __eq__(self, other: Self) -> bool:
         return self.__class__ is other.__class__
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}()"
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}"
 
     @abc.abstractmethod
     def check(self, now: pd.Timestamp) -> bool:
@@ -43,7 +43,7 @@ class StandardInterval(Trigger):
     def __eq__(self, other: Trigger) -> bool:
         return isinstance(other, StandardInterval) and self.interval == other.interval
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}('{self.interval}')"
 
     def check(self, now: pd.Timestamp) -> bool:

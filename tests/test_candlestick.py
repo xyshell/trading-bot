@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 
-from tradingbot.data.candlestick import Candlestick
+from tradingbot.data import Candlestick
 import tradingbot.util as util
 
 
