@@ -8,8 +8,10 @@ class Transaction:
     frm_qty: float
     to_asset: str
     to_qty: float
-    cost_asset: str
-    cost_qty: float
+    fee_asset: str
+    fee_qty: float
+    prc_ticker: str
+    prc: float
     timestamp: pd.Timestamp
 
     # model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -31,8 +33,8 @@ class Transaction:
     #         ), f"Failed to reconcile {self}"
     #     return self
 
-    def __bool__(self) -> bool:
-        return not (self.from_pos.qty == self.to_pos.qty == 0)
+    # def __bool__(self) -> bool:
+    #     return not (self.from_pos.qty == self.to_pos.qty == 0)
 
 
 # class _MarginTransaction(Transaction):

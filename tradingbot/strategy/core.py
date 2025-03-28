@@ -26,6 +26,7 @@ class Strategy(abc.ABC):
 
     def __init__(self, **kwargs):
         self.param = self.__class__.param.copy()
+        self.report_currency: str = kwargs.pop("report_currency", "USDT")
         self.param.update(kwargs)  # override default param
 
         # self.orders: list[Order] = []  # keep track of all open orders, TODO: consider order as low-level API and moving to trader

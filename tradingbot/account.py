@@ -60,8 +60,8 @@ class Account:
                 # if position direction is flipped or entry cost tickers are different, use pos2's entry cost
                 return SpotPosition(asset=pos1.asset, qty=new_qty, entry_cost=pos2.entry_cost)
             else:  # add or reduce position
-                new_entry_cost_qty = (pos2.entry_cost.qty * pos2.qty + pos1.entry_cost.qty * pos1.qty) / new_qty if new_qty else 0.0
-                return SpotPosition(asset=pos1.asset, qty=new_qty, entry_cost=Position(asset=pos1.entry_cost.asset, qty=new_entry_cost_qty))
+                new_entry_fee_qty = (pos2.entry_cost.qty * pos2.qty + pos1.entry_cost.qty * pos1.qty) / new_qty if new_qty else 0.0
+                return SpotPosition(asset=pos1.asset, qty=new_qty, entry_cost=Position(asset=pos1.entry_cost.asset, qty=new_entry_fee_qty))
         elif isinstance(pos1, Position):
             return Position(asset=pos1.asset, qty=new_qty)
         

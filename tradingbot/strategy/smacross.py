@@ -40,7 +40,7 @@ class SMACross(Strategy):
         }
 
         if crossup:
-            self.logger.info(f"SMA crossed up, buy at {close.iloc[-1]:.2f} 🟢🟢🟢")
+            self.logger.debug(f"SMA crossed up, buy at {close.iloc[-1]:.2f} 🟢🟢🟢")
             self.balance.convert(1.0, "PCTG", "USDT", self.param["coin"], trader=self.trader)  # convert [100] [percentage] of [USDT] to [BTC]
            
             # quantity instead of percentage
@@ -53,11 +53,11 @@ class SMACross(Strategy):
             # self.balance.convert(1.0, "USDT", self.param["coin"], trader=self.trader, method="limit2market", param={"price": 80_000, "wait": 300, "n": 5, "delay": 60})
 
         elif crossdown:
-            self.logger.info(f"SMA crossed down, sell at {close.iloc[-1]:.2f} 🔴🔴🔴")
+            self.logger.debug(f"SMA crossed down, sell at {close.iloc[-1]:.2f} 🔴🔴🔴")
             self.balance.convert(1.0, "PCTG", self.param["coin"], "USDT", trader=self.trader)  # convert [100] [percentage] of [BTC] to [USDT]
 
     def stop(self):  # function to be called in the end
-        self.logger.info(f"{str(self)} stopped")
+        self.logger.debug(f"{str(self)} stopped")
 
 
 
@@ -93,7 +93,7 @@ class SMACrossFuture(Strategy):
         }
 
         if crossup:
-            self.logger.info(f"SMA crossed up, close short and open long at {close.iloc[-1]:.2f} 🟢🟢🟢")
+            self.logger.debug(f"SMA crossed up, close short and open long at {close.iloc[-1]:.2f} 🟢🟢🟢")
             self.balance.target(
                 0.0, "PCTG", "SHORT", f"USDT/{self.param['coin']}:USDT", trader=self.trader
             )  # target [0] [percentage] of [short] position of contract [USDT/BTC:USDT]
@@ -101,7 +101,7 @@ class SMACrossFuture(Strategy):
                 1.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", leverage=5, trader=self.trader
             )  # convert [100] [percentage] of [long] position of contract [USDT/BTC:USDT], with leverage x[5]
         elif crossdown:
-            self.logger.info(f"SMA crossed down, sell at {close.iloc[-1]:.2f} 🔴🔴🔴")
+            self.logger.debug(f"SMA crossed down, sell at {close.iloc[-1]:.2f} 🔴🔴🔴")
             self.balance.target(
                 0.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", trader=self.trader
             )  # target [0] [percentage] of [long] position of contract [USDT/BTC:USDT]

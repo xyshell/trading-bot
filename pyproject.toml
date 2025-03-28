@@ -11,6 +11,9 @@ dependencies = [
     "pydantic-settings >= 2.2, < 2.3",
     "retry >= 0.9, <1.0",
     "psutil >= 6.1, < 6.2",
+    "toml >= 0.10, <0.11",
+    "fire >= 0.7, <0.8",
+    "streamlit >= 1.44, <1.45",
     "dask[complete] >= 2025.3.0, < 2025.4.0",
 ]
 name = "trading-bot"
@@ -38,7 +41,7 @@ classifiers = [
 dev = [
     "pytest >= 8.3, < 8.4",
     "syrupy >= 4.8, < 4.9",
-    "ruff >= 0.7, < 0.8",
+    "ruff >= 0.11, < 0.12",
     "build >= 1.2, < 1.3",
 ]
 

@@ -1,4 +1,5 @@
 import abc
+from collections import defaultdict
 import copy
 import logging
 
@@ -31,6 +32,24 @@ class Exchange:
     @abc.abstractmethod
     def update(self, order: Order):
         """Update status of an order"""
+        pass
+
+    @abc.abstractmethod
+    def fetch_tickers(self, tickers: list[str]) -> dict:
+        """fetch latest info for tickers
+        
+        Args:
+            tickers (list[str]): e.g. ["USDT/BTC", "USDT/ETH"]
+
+        Returns:
+            dict: {
+                "USDT/BTC": {
+                    "last": 12345.6
+                    ...
+                }
+                ...
+            }
+        """
         pass
 
 
@@ -179,6 +198,32 @@ class FakeExchange(Exchange):
         elif order.type is Order.Type.MARKET:
             return self._execute_market(order)
         raise NotImplementedError
+
+    def fetch_tickers(self, tickers: list[str]) -> dict:
+        """Fetch latest info for tickers
+        
+        Args:
+            tickers (list[str]): e.g. ["USDT/BTC", "USDT/ETH"]
+
+        Returns:
+            dict: {
+                "USDT/BTC": {
+                    "last": 12345.6
+                    ...
+                }
+                ...
+            }
+        """
+        ticker2close = self.strategy.data.ticker2close
+
+        res = defaultdict(dict)
+        for ticker in ticker2close:
+            if ticker in tickers:
+                res[ticker]["last"] = ticker2close[ticker]
+        return res
+
+
+
 
 
 # class FakeFutureExchange(FakeExchange, FutureExchange):

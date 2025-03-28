@@ -101,7 +101,7 @@ class BacktestPipeline(Pipeline):
         self._update_data(now, strategy.data)
 
         # execute pending orders
-        self._mark_to_market(strategy)
+        # self._mark_to_market(strategy)
 
         # TODO: move elsewhere
         # for order in strategy.orders:
@@ -118,10 +118,11 @@ class BacktestPipeline(Pipeline):
         #     order = strategy.exchange.execute(now, order)
         #     strategy.exchange.update_order(now, order)
         
-        strategy.store_history[now] = strategy.store
         # # archive position
         # self._mark_to_market(strategy)
-        strategy.balance_history[now] = copy.deepcopy(strategy.balance)
+        strategy.balance_history[now] = copy.deepcopy(strategy.balance)        
+        strategy.store['_evaluated_balance'] = strategy.balance.evaluate(strategy.trader.exchange, strategy.report_currency)
+        strategy.store_history[now] = strategy.store
 
     def run(self, strategy: Strategy, **kwargs) -> None:
         """Run strategy in backtest
@@ -153,11 +154,11 @@ class BacktestPipeline(Pipeline):
 
         now_generator = self._get_now_generator(strategy.next.trigger)
         for now in now_generator():
-            tic = time.time()
-            memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
-
             if now > self._end:
                 break
+
+            tic = time.time()
+            memory_usage = psutil.Process(os.getpid()).memory_info().rss / 1024**2
 
             # check trigger status
             triggered = []
@@ -169,27 +170,28 @@ class BacktestPipeline(Pipeline):
                 logger.info(f"Now Triggered ⌚'{now}': {strategy} by {triggered}, RAM usage: {memory_usage:.2f} MB")
                 strategy.trigger_msg = [str(trg) for trg in triggered]
 
-                # prepare
+                # prep
                 self._prep(now, strategy)
 
-                # strategy next
+                # next
                 strategy.next()
 
-                # postprocess
+                # post
                 self._post(now, strategy)
 
             toc = time.time()
             logger.debug(f"Run {now}: took {toc - tic:.2f} seconds. RAM usage: {memory_usage:.2f} MB")
-
-        # clear preload cache
-        for da in strategy.data.values():
-            del da._cached
 
         # build report
         Reporter.set(strategy)
         Reporter.display(strategy)
 
         strategy.stop()
+
+        # clear preload cache
+        for da in strategy.data.values():
+            del da._cached
+
         end_tic = time.time()
         logger.debug(f"BacktestPipeline.run took {(end_tic - start_tic):.2f} seconds.")
 

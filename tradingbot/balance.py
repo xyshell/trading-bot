@@ -4,7 +4,7 @@ from collections import UserDict
 
 import numpy as np
 
-from tradingbot.exchange import Exchange
+from tradingbot.exchange import RealExchange, Exchange, FakeExchange
 from tradingbot.transaction import Transaction
 
 
@@ -24,20 +24,38 @@ class Balance(UserDict):
             raise ValueError(f"balance cannot be negative, got {key}={value}")
         self.data[key] = value
 
-    @classmethod
-    def reflect(cls, exchange: Exchange, balance_type: str = "total") -> Balance:
-        return cls(**exchange.fetch_balance(balance_type))
+    def reflect(self, exchange: Exchange, balance_type: str = "total") -> Balance:
+        """Reflect balance from exchange
+        
+        Args:
+            exchange (Exchange):
+            balance_type (str): "total", "free" or "used"
+        """
+        if isinstance(exchange, FakeExchange):
+            return self
+        balance = copy.deepcopy(self)
+        balance.data = exchange.fetch_balance(balance_type)
+        return balance
 
-    def value(self, exchange: Exchange, currency: str) -> dict[str, float]:
-        tickers = [f"{currency}/{asset}" for asset in self._assets.keys()]
+    def evaluate(self, exchange: Exchange, currency: str) -> dict[str, float]:
+        """Evaluate balance in one currency
+        
+        Args:
+            exchange (Exchange): 
+            currency (str): e.g. USDT
+
+        Returns:
+            dict[str, float]
+        """
+        tickers = [f"{currency}/{asset}" for asset in self.data.keys()]
         trivial_ticker = f"{currency}/{currency}"
         if trivial_ticker in tickers:
             tickers.remove(trivial_ticker)
         status = exchange.fetch_tickers(tickers)
         price = {k: v["last"] for k, v in status.items()}
         price[trivial_ticker] = 1.0
-        valued = {asset: self._assets[asset] * price[f"{currency}/{asset}"] for asset in self._assets}
-        return valued
+        evaluated = {asset: self.data[asset] * price[f"{currency}/{asset}"] for asset in self.data}
+        return evaluated
 
     # def add_position(self, pos: Position):  # TODO: add future positions
     
@@ -80,7 +98,12 @@ class Balance(UserDict):
 
         # FakeExchange, assuming executed at close price, regarless of method
         ticker2close = trader.strategy.data.ticker2close
-        divider = ticker2close.get(f"{frm}/{to}", 1.0 / ticker2close.get(f"{to}/{frm}", np.nan))
+        if f"{frm}/{to}" in ticker2close:
+            ticker = f"{frm}/{to}"
+            divider = ticker2close[ticker]
+        else:
+            ticker = f"{to}/{frm}"
+            divider = 1.0 / ticker2close[ticker]
         to_qty = frm_qty / divider
         tcost = to_qty * trader.exchange._commission
         to_qty -= tcost  # charge tcost in <to> asset, i.e. get less
@@ -94,10 +117,12 @@ class Balance(UserDict):
             # TODO: consider adding param to try as much as possible
         else:
             self.data = new_balance.data
-            trader.strategy.transaction_history.append(Transaction(frm, frm_qty, to, to_qty, frm, tcost, timestamp=trader.strategy.now))
-    
-    def target(self, size: float, size_type: str, direction: str, ticker: str, *, trader, leverage: int = 1, method: str = "market", param: dict | None = None) -> None:
-        """Target <direction> position of <ticker> using <method> with <param>, e.g.
+            trans = Transaction(frm, frm_qty, to, to_qty, frm, tcost, ticker, ticker2close[ticker],
+                                timestamp=trader.strategy.now)
+            trader.strategy.transaction_history.append(trans)
+
+    def target(self, size: float, size_type: str, side: str, ticker: str, *, trader, leverage: int = 1, method: str = "market", param: dict | None = None) -> None:
+        """Target <side> position of <ticker> using <method> with <param>, e.g.
         
         1. target [0] [percentage] of [short] position of contract [USDT/BTC:USDT]
         self.target(0.0, "PCTG", "SHORT", f"USDT/BTC:USDT", trader=trader)
@@ -114,7 +139,7 @@ class Balance(UserDict):
         Args:
             size (float): size of the target
             size_type (str): "QTY" for quantity or "PCTG" for percentage
-            direction (str): "LONG" or "SHORT"
+            side (str): "LONG" or "SHORT"
             ticker (str): ticker of the tradable asset
             
         Returns:

@@ -366,6 +366,20 @@ class CCXTExchange(RealExchange):
         return {v: k for k, v in self.ticker2symbol.items()}
 
     def fetch_tickers(self, tickers: list[str]) -> dict:
+        """
+        
+        Args:
+            tickers (list[str]): e.g. ["USDT/BTC", "USDT/ETH"]
+
+        Returns:
+            dict: {
+                "USDT/BTC": {
+                    "last": 12345.6
+                    ...
+                }
+                ...
+            }
+        """
         symbols = [self.ticker2symbol[ticker] for ticker in tickers]
         status = self.client.fetch_tickers(symbols)
         return {self.symbol2ticker[k]: v for k, v in status.items()}
