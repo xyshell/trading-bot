@@ -116,7 +116,7 @@ class SMACrossFuture(Strategy):
                 1.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", leverage=5, trader=self.trader
             )  # convert [100] [percentage] of [long] position of contract [USDT/BTC:USDT], with leverage x[5]
         elif crossdown:
-            self.logger.debug(f"SMA crossed down, sell at {close.iloc[-1]:.2f} 🔴🔴🔴")
+            self.logger.debug(f"SMA crossed down, close long and open short at {close.iloc[-1]:.2f} 🔴🔴🔴")
             self.balance.target(
                 0.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", trader=self.trader
             )  # target [0] [percentage] of [long] position of contract [USDT/BTC:USDT]

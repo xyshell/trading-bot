@@ -80,7 +80,7 @@ class CCXTExchange(RealExchange):
             case "closed":
                 order.status = Order.Status.FILLED
                 self.strategy.logger.info(f"order filled: {order}")
-                from_ticker, to_ticker = order.from_ticker, order.to_ticker
+                frm_asset, to_asset = order.frm_asset, order.to_asset
                 from_qty = order_info["cost"] if order_info["side"] == "buy" else order_info["amount"]
                 to_qty = (
                     (order_info["amount"] - order_info["fee"]["cost"])
@@ -90,8 +90,8 @@ class CCXTExchange(RealExchange):
                 trans = Transaction(
                     ticker=order.ticker,
                     prc=order_info["average"],
-                    from_=(from_ticker, from_qty),
-                    to_=(to_ticker, to_qty),
+                    from_=(frm_asset, from_qty),
+                    to_=(to_asset, to_qty),
                     tcost=(order_info["fee"]["currency"], order_info["fee"]["cost"]),
                     timestamp=pd.Timestamp(order_info["datetime"]),
                 )
@@ -117,7 +117,7 @@ class CCXTExchange(RealExchange):
         assert order.type is Order.Type.MARKET, f"Invalid order type: {order.type}"
         assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
         assert order.status is Order.Status.NEW, f"Invalid order status: {order.status}"
-        quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
+        quote_ticker, base_ticker = util.get_quote_asset(order.ticker), util.get_base_asset(order.ticker)
 
         symbol = self.get_symbol(order.ticker)
         type_ = "market"
@@ -159,7 +159,7 @@ class CCXTExchange(RealExchange):
         assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
         assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
         assert order.status in {Order.Status.NEW, Order.Status.PENDING, Order.Status.CANCELED, Order.Status.PARTIAL_FILLED}, f"Invalid order status: {order.status}"
-        quote_ticker, base_ticker = util.get_quote_ticker(order.ticker), util.get_base_ticker(order.ticker)
+        quote_ticker, base_ticker = util.get_quote_asset(order.ticker), util.get_base_asset(order.ticker)
 
         if order.status in {Order.Status.PENDING, Order.Status.PARTIAL_FILLED}:
             return order
@@ -293,7 +293,7 @@ class CCXTExchange(RealExchange):
             Account
         """
         account = copy.deepcopy(account)
-        quote_ticker, base_ticker = util.get_quote_ticker(ticker), util.get_base_ticker(ticker)
+        quote_ticker, base_ticker = util.get_quote_asset(ticker), util.get_base_asset(ticker)
         balance = self.client.fetch_balance({"ccy": base_ticker})
         base_info = balance.get(base_ticker, {})
 
@@ -333,7 +333,16 @@ class CCXTExchange(RealExchange):
             market_type (str): "spot", "future", "swap", "option", defaults to load all
 
         Returns:
-            dict
+            dict: 
+            {
+                "USDT/BTC": {
+                    "quote": "USDT",
+                    "base": "BTC",
+                    "type": "spot",
+                    ...
+                }
+                ...
+            }
         """
         markets = self._load_markets()
         spot_markets = {k.replace(f"{v['base']}/{v['quote']}", f"{v['quote']}/{v['base']}"): v for k, v in markets.items() if v["type"] == "spot"}  # BTC/USDT (base/quote)

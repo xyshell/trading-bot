@@ -1371,7 +1371,7 @@ class TestCCXTExchange:
     #     balance['timestamp'], balance['datetime']  # record time
     #     balance['free'], balance['used'], balance['total']  # free, used, total by coin
     #     ticker = "USDT/BTC"
-    #     coin_detail = balance.get(util.get_base_ticker(ticker))
+    #     coin_detail = balance.get(util.get_base_asset(ticker))
     #     coin_detail['free'], coin_detail['used'], coin_detail['total']
     #     assert balance
 

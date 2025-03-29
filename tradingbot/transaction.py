@@ -42,7 +42,7 @@ class Transaction:
 
 #     def _validate(self) -> None:
 #         super()._validate()
-#         quote_ticker = util.get_quote_ticker(self.ticker)
+#         quote_ticker = util.get_quote_asset(self.ticker)
 #         assert self.tcost[0] == quote_ticker, f"Tcost should be charged in '{quote_ticker}'"
 
 
@@ -59,7 +59,7 @@ class Transaction:
 #         return self
 
 #     def split(self) -> tuple[SpotPosition, MarginSpotPosition, SpotPosition]:
-#         quote_ticker = util.get_quote_ticker(self.ticker)
+#         quote_ticker = util.get_quote_asset(self.ticker)
 #         return (
 #             SpotPosition(asset=self.from_[0], qty=self.from_[1], entry_prc=0.0),  # withdraw from normal position
 #             MarginSpotPosition(
@@ -83,7 +83,7 @@ class Transaction:
 #         return self
 
 #     def split(self) -> tuple[MarginSpotPosition, SpotPosition, SpotPosition]:
-#         quote_ticker = util.get_quote_ticker(self.ticker)
+#         quote_ticker = util.get_quote_asset(self.ticker)
 #         return (
 #             MarginSpotPosition(
 #                 ticker=self.from_[0], 

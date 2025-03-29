@@ -97,22 +97,39 @@ def to_list(obj):
         return [obj]
 
 
-def get_base_ticker(ticker: str) -> str:
+def get_base_asset(ticker: str) -> str:
     """USDT/BTC -> BTC"""
     assert "/" in ticker
-    return ticker.split("/")[1]
+    return ticker.split("/")[1].split(":")[0]
 
 
-def get_quote_ticker(ticker: str) -> str:
+def get_quote_asset(ticker: str) -> str:
     """USDT/BTC -> USDT"""
     assert "/" in ticker
     return ticker.split("/")[0]
 
 
+def get_margin_asset(ticker: str) -> str:
+    """USDT/BTC:USDT-250404 -> USDT"""
+    assert ":" in ticker
+    return ticker.split(":")[1].split("-")[0]
+
+
+def get_expiry_date(ticker: str) -> pd.Timestamp:
+    assert "-" in ticker
+    return pd.Timestamp(f"{str(pd.Timestamp.now().year)[:2]}{ticker.split('-')[1]}")
+
+
+def get_strike_price(ticker: str) -> float:
+    splited = ticker.split('-')
+    assert len(splited) >= 3
+    return float(splited[2])
+
+
 def convert(from_: tuple[str, float], ticker: str, prc: float) -> tuple[str, float]:
     """convert from one asset to another at a given price, assuming no tcost"""
-    quote_ticker = get_quote_ticker(ticker)
-    base_ticker = get_base_ticker(ticker)
+    quote_ticker = get_quote_asset(ticker)
+    base_ticker = get_base_asset(ticker)
     if from_[0] == quote_ticker:
         return (base_ticker, from_[1] / prc)
     elif from_[0] == base_ticker:

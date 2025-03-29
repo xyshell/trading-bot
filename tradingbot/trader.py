@@ -12,37 +12,49 @@ from tradingbot.exchange import RealExchange, FakeExchange
 
 
 class Trader:
-    """Trade uses exchange to implement trading instructions from strategy"""
+    """Trader implements trading instructions from strategy, by working with exchange
+    """
 
     @util.validate
     def __init__(self, fake_exchange: FakeExchange, real_exchange: RealExchange | None = None, /):
         self._fake_exchange = fake_exchange
         self._real_exchange = real_exchange or fake_exchange
-        self._mode = None
-        self._strategy = None
-
-    @property
-    def mode(self) -> str:
-        return self._mode
-
-    @mode.setter
-    def mode(self, value: str) -> None:
-        self._mode = value
-    
-    @property
-    def strategy(self) -> Strategy:
-        return self._strategy
-    
-    @strategy.setter
-    def strategy(self, value: Strategy) -> None:
-        self._strategy = value
+        self.mode: str  # "live", "paper" or "backtest"
+        self.strategy: Strategy
 
     @cached_property
     def exchange(self) -> RealExchange | FakeExchange:
-        return self._real_exchange if self._mode == "live" else self._fake_exchange
+        return self._real_exchange if self.mode == "live" else self._fake_exchange
 
     def __repr__(self):
         return f"Trader(exchange={self.exchange})"
+
+    @util.dispatch
+    def implement(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+        raise NotImplementedError()
+
+    @implement.register((__qualname__, "market"))
+    def _(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+        markets = self.exchange.load_markets()
+        if f"{frm}/{to}" in markets:
+            ticker = f"{frm}/{to}"
+            action = "buy"
+        elif f"{to}/{frm}" in markets:
+            ticker = f"{to}/{frm}"
+            action = "sell"
+        else:
+            raise NotImplementedError(f"{frm} -> {to}")
+
+        prc = self.strategy.data.ticker2close[ticker]
+        order = Order(
+            action=action, 
+            ticker=ticker, 
+            amount=frm_qty / prc if action == "buy" else frm_qty, 
+            type="market", 
+            created_at=self.strategy.now, 
+            updated_at=self.strategy.now
+        )
+        order = self.exchange.execute("market", order)
 
     # @util.validate
     # def submit(self, order: Order, algo: Algo = Algo.PASSIVE) -> None:

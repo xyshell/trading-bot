@@ -1,6 +1,7 @@
 from tradingbot import Bot
 from tradingbot.strategy.smacross import SMACross, SMACrossFuture
 
+
 def test_smacross_backtest(snapshot):
     bot = Bot(mode="backtest", start="2024-09-01", end="2024-10-01")
     bot.add_strategy(SMACross())
@@ -22,6 +23,7 @@ def test_smacross_backtest(snapshot):
     fig = bot.strategy.plot()
     import matplotlib.pyplot as plt
     plt.figure(fig.number)
+
 
 def test_smacrossfuture_backtest():
     bot = Bot(mode="backtest", start="2024-09-01", end="2024-10-01")

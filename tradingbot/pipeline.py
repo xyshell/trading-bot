@@ -62,8 +62,8 @@ class Pipeline(abc.ABC):
         # for pos in spot_positions:
             # for ticker, candle in strategy.data.ticker2candle.items():
                 # update market price
-                # if pos.asset == util.get_base_ticker(ticker):
-                    # pos.market_value = Position(asset=util.get_quote_ticker(ticker), qty=candle["close"].iloc[-1])
+                # if pos.asset == util.get_base_asset(ticker):
+                    # pos.market_value = Position(asset=util.get_quote_asset(ticker), qty=candle["close"].iloc[-1])
                 # TODO: check liquidation for margin position
                 # if isinstance(pos, MarginPosition):
                 #     if pos.margin[1] < 0:
