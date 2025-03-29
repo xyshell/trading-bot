@@ -114,7 +114,7 @@ class Balance(UserDict):
             new_balance[to] += to_qty
         except ValueError:
             raise ValueError(f"insufficient balance to convert {frm_qty} '{frm}' to {to_qty} '{to}', current balance: {self}")
-            # TODO: consider adding param to try as much as possible
+            # TODO: consider adding param to use as much balance as possible
         else:
             self.data = new_balance.data
             trans = Transaction(frm, frm_qty, to, to_qty, frm, tcost, ticker, ticker2close[ticker],

@@ -221,10 +221,7 @@ class FakeExchange(Exchange):
             if ticker in tickers:
                 res[ticker]["last"] = ticker2close[ticker]
         return res
-
-
-
-
+    
 
 # class FakeFutureExchange(FakeExchange, FutureExchange):
 

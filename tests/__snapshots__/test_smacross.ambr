@@ -1,0 +1,25 @@
+# serializer version: 1
+# name: test_smacross_backtest
+  721
+# ---
+# name: test_smacross_backtest.1
+  4889.3742
+# ---
+# name: test_smacross_backtest.2
+  9778.7484
+# ---
+# name: test_smacross_backtest.3
+  Timestamp('2024-09-16 00:39:22.500000')
+# ---
+# name: test_smacross_backtest.4
+  Timedelta('1 days 00:56:15')
+# ---
+# name: test_smacross_backtest.5
+  16
+# ---
+# name: test_smacross_backtest.6
+  -3.7118
+# ---
+# name: test_smacross_backtest.7
+  -0.0003
+# ---

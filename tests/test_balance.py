@@ -1,22 +1,39 @@
-import pytest
+from unittest.mock import patch
 
 from tradingbot.exchange import CCXTExchange
 from tradingbot.balance import Balance
 
 
-@pytest.mark.fetch  # TODO: mock
-def test_reflect():
-    exchange = CCXTExchange("okx")
+@patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+def test_reflect(mock_client):
+    mock_client.fetch_balance.return_value = {
+        "free": {"USDT": 1009.9},
+        "used": {"USDT": 0.0},
+        "total": {"USDT": 1009.9},
+    }
+
+    exchange = CCXTExchange()
     balance = Balance().reflect(exchange)
-    assert balance.keys()
+    assert balance["USDT"] == 1009.9
 
+@patch("tradingbot.exchange.ccxt.CCXTExchange.client")
+def test_evaluate(mock_client):
+    mock_client.fetch_balance.return_value = {
+        "free": {"BTC": 0.19},
+        "used": {"BTC": 0.0},
+        "total": {"BTC": 0.19},
+    }
+    mock_client.load_markets.return_value = {
+        "USDT/BTC": {"quote": "USDT", "base": "BTC", "symbol": "BTC/USDT", "type": "spot"}
+    }
+    mock_client.fetch_tickers.return_value = {
+        "BTC/USDT": {"last": 12345.6}
+    }
 
-@pytest.mark.fetch  # TODO: mock
-def test_evaluate():
-    exchange = CCXTExchange("okx")
+    exchange = CCXTExchange()
     balance = Balance().reflect(exchange)
     evaluated = balance.evaluate(exchange, "USDT")
-    assert evaluated.keys() == balance.keys()
+    assert evaluated["BTC"] == 12345.6 * 0.19
 
 """
 Balance({
@@ -34,7 +51,6 @@ Balance({
                 "leverage": 10
                 # computed attrs
                 "liquidation_prc": 94.80 / 0.1
-
             }
         ]
     ]

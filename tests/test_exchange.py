@@ -1318,7 +1318,7 @@ class TestCCXTExchange:
     #     assert order
 
     # def test_fetch_balance(self):
-    #     exchange = CCXTExchange()
+    #     exchange = CCXTExchange()fetch_balance
     #     balance = exchange.client.fetch_balance()
     #     balance = exchange.client.fetch_balance({"ccy": "BTC"})
     #     balance = exchange.client.fetch_balance({"ccy": "BTC,ETH"})

@@ -82,7 +82,7 @@ class Strategy(abc.ABC):
             candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
-        buy_sell = transaction_report[["timestamp", "frm_asset", "to_asset", "prc"]]
+        buy_sell = transaction_report[["timestamp", "frm_asset", "to_asset", "prc"]].copy()
         buy_sell["BUY"] = np.where(buy_sell["frm_asset"] == self.report_currency, buy_sell["prc"], np.nan)
         buy_sell["SELL"] = np.where(buy_sell["to_asset"] == self.report_currency, buy_sell["prc"], np.nan)
         df = pd.concat([df, buy_sell.set_index("timestamp")[["BUY", "SELL"]]], axis=1)
