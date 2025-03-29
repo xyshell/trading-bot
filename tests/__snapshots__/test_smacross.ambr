@@ -5,6 +5,9 @@
 # name: test_smacross_backtest.1
   4889.3742
 # ---
+# name: test_smacross_backtest.10
+  -0.0003
+# ---
 # name: test_smacross_backtest.2
   9778.7484
 # ---
@@ -15,11 +18,17 @@
   Timedelta('1 days 00:56:15')
 # ---
 # name: test_smacross_backtest.5
-  16
+  0.163628125
 # ---
 # name: test_smacross_backtest.6
-  -3.7118
+  'cec0d147f563f25b6d3301fbb4a99d23333574240803387aff1229443cd42eee'
 # ---
 # name: test_smacross_backtest.7
-  -0.0003
+  Timestamp('2024-09-16 00:39:22.500000')
+# ---
+# name: test_smacross_backtest.8
+  16
+# ---
+# name: test_smacross_backtest.9
+  -3.7118
 # ---

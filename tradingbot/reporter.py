@@ -51,15 +51,15 @@ class Reporter:
         ])
         return transaction_report
 
-    # @staticmethod
-    # def get_order_report(strategy: Strategy) -> pd.DataFrame:
-    #     if not strategy.order_history:
-    #         return pd.DataFrame(columns=Order.model_fields)
+    @staticmethod
+    def get_order_report(strategy: Strategy) -> pd.DataFrame:
+        if not strategy.order_history:
+            return pd.DataFrame()
 
-    #     order_report = pd.DataFrame(
-    #         [{"timestamp": timestamp, **order.model_dump(mode="json")} for timestamp, order in strategy.order_history]
-    #     ).set_index("timestamp")
-    #     return order_report
+        order_report = pd.DataFrame(
+            [order.model_dump() for order in strategy.order_history]
+        )
+        return order_report
 
     @staticmethod
     def get_trade_report(strategy: Strategy) -> pd.DataFrame:
@@ -226,7 +226,7 @@ class Reporter:
         strategy.report["asset"] = Reporter.get_asset_report(strategy)
         strategy.report["portfolio"] = Reporter.get_portfolio_report(strategy)
         strategy.report["transaction"] = Reporter.get_transaction_report(strategy)
-        # strategy.report["order"] = Reporter.get_order_report(strategy)
+        strategy.report["order"] = Reporter.get_order_report(strategy)
         strategy.report["trade"] = Reporter.get_trade_report(strategy)
         strategy.report["summary"] = Reporter.get_summary_report(strategy)
         strategy.report["store"] = Reporter.get_store_report(strategy)
