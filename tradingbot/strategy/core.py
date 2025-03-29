@@ -14,10 +14,9 @@ from tradingbot.data.core import Data
 
 
 class Strategy(abc.ABC):
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        
+
         # ensure cls.param
         if not hasattr(cls, "param"):
             cls.param = {}
@@ -31,7 +30,7 @@ class Strategy(abc.ABC):
 
         # self.orders: list[Order] = []  # keep track of all open orders, TODO: consider order as low-level API and moving to trader
         # self.order_history: list[Order] = []  # record all filled orders
-        self.balance: Balance # current balance
+        self.balance: Balance  # current balance
         self.balance_history: dict[pd.Timestamp, Balance] = {}  # record all positions
         self.transaction_history: list[Transaction] = []  # record all transactions
         self.store: dict[str, any] = {}  # store any user custom values
@@ -44,7 +43,7 @@ class Strategy(abc.ABC):
         return f"{self.__class__.__name__}({self.param})"
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}_{"_".join([f"{v:.4f}" if isinstance(v, float) else str(v) for v in self.param.values()])}".replace(
+        return f"{self.__class__.__name__}_{'_'.join([f'{v:.4f}' if isinstance(v, float) else str(v) for v in self.param.values()])}".replace(
             "/", ""
         )
 
@@ -61,16 +60,20 @@ class Strategy(abc.ABC):
     def stop(self):
         pass
 
-    def plot(self, /, engine="matplotlib", **kwargs) -> None:
-        assert engine == "matplotlib", f"{engine=} not supported"
+    def plot(self, /, engine="mplfinance", **kwargs):
+        """Plot strategy result
 
+        Returns:
+            Figure object depend on engine
+        """
+        assert engine == "mplfinance", f"{engine=} not supported"
         import mplfinance as mpf
-        import matplotlib.pyplot as plt
 
         data = self.data
-        # analyze results
-        port_report = self.report["portfolio"]
-        order_report = self.report["order"].query("status == 'FILLED'")
+        port_report = self.report["portfolio"].set_index("timestamp")
+        nav_col = f"NAV_{self.report_currency}"
+        # order_report = self.report["order"].query("status == 'FILLED'")
+        transaction_report = self.report["transaction"]
         sample_freq = util.inferred_freq2freq(port_report.index.inferred_freq)
         candlestick_highest = min(data.values(), key=lambda da: pd.Timedelta(da.freq))
         if pd.Timedelta(candlestick_highest.freq) > pd.Timedelta(sample_freq):
@@ -79,46 +82,10 @@ class Strategy(abc.ABC):
             candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(port_report, candlestick_df, right_on="close_time", left_index=True)
-        buy_sell = order_report[["action", "param"]].copy()
-        buy_sell["exec_prc"] = buy_sell["param"].apply(lambda x: x.get("price"))
-        buy_sell["one"] = 1
-        buy_sell_point = buy_sell.groupby(["timestamp", "action"])[["one"]].sum().unstack(level="action").resample(sample_freq, closed="left").sum()
-        buy_sell_point = buy_sell_point.loc[buy_sell_point.index.isin(buy_sell.index)]
-        buy_sell_point.columns = buy_sell_point.columns.droplevel(0)
-        buy_sell_prc = buy_sell.groupby(["timestamp", "action"])[["exec_prc"]].mean().unstack(level="action").resample(sample_freq, closed="left").first()
-        buy_sell_prc = buy_sell_prc.loc[buy_sell_prc.index.isin(buy_sell.index)].add_suffix("_prc")
-        buy_sell_prc.columns = buy_sell_prc.columns.droplevel(0)
-        df = pd.concat([df, buy_sell_point, buy_sell_prc], axis=1)
-        buy_col = {Order.Action.BUY.name, Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name}
-        sell_col = {Order.Action.SELL.name, Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name}
-        buy_plus_col = {Order.Action.OPEN_LONG.name, Order.Action.CLOSE_SHORT.name}
-        sell_plus_col = {Order.Action.OPEN_SHORT.name, Order.Action.CLOSE_LONG.name}
-        df["BUY"] = np.where(
-            df[list(buy_col & set(df.columns))].any(axis=1), 
-            df[(pd.Index(buy_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
-            np.nan
-        )
-        df["SELL"] = np.where(
-            df[list(sell_col & set(df.columns))].any(axis=1), 
-            df[(pd.Index(sell_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
-            np.nan
-        )
-        if Order.Action.OPEN_LONG.name in df.columns and Order.Action.OPEN_SHORT.name in df.columns:
-            df["BUY_PLUS"] = np.where(
-                df[list(buy_plus_col)].sum(axis=1) == 2, 
-                df[(pd.Index(buy_plus_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
-                np.nan
-            )
-        else:
-            df["BUY_PLUS"] = np.nan
-        if Order.Action.CLOSE_LONG.name in df.columns and Order.Action.CLOSE_SHORT.name in df.columns:
-            df["SELL_PLUS"] = np.where(
-                df[list(sell_plus_col)].sum(axis=1) == 2, 
-                df[(pd.Index(sell_plus_col) + '_prc').intersection(df.columns)].mean(axis=1).fillna(df['close']), 
-                np.nan
-            )
-        else:
-            df["SELL_PLUS"] = np.nan
+        buy_sell = transaction_report[["timestamp", "frm_asset", "to_asset", "prc"]]
+        buy_sell["BUY"] = np.where(buy_sell["frm_asset"] == self.report_currency, buy_sell["prc"], np.nan)
+        buy_sell["SELL"] = np.where(buy_sell["to_asset"] == self.report_currency, buy_sell["prc"], np.nan)
+        df = pd.concat([df, buy_sell.set_index("timestamp")[["BUY", "SELL"]]], axis=1)
         if "volume" not in df.columns and "base_volume" in df.columns:
             df.rename(columns={"base_volume": "volume"}, inplace=True)
         df.drop_duplicates(subset=["ticker", "close_time"], keep="last", inplace=True)
@@ -140,16 +107,18 @@ class Strategy(abc.ABC):
             xrotation=0,
             datetime_format="%y/%m/%d %H:%M",
             addplot=[
-                mpf.make_addplot(df["nav"], panel=0, alpha=1.0, color="b", label="NAV", secondary_y=False),
-                *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=True, label=col) for col in port_report.columns if col != "nav"],
+                mpf.make_addplot(df[nav_col], panel=0, alpha=1.0, color="b", label=nav_col, secondary_y=False),
+                *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=True, label=col) for col in port_report.columns if col != nav_col],
                 mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#4db344", secondary_y=False, label="BUY"),
                 mpf.make_addplot(df["SELL"], panel=1, type="scatter", markersize=50, marker="v", color="#fa5f7e", secondary_y=False, label="SELL"),
-                mpf.make_addplot(df["BUY_PLUS"], panel=1, type="scatter", markersize=50, marker=10, color="#4db344", secondary_y=False, label=""),
-                mpf.make_addplot(df["SELL_PLUS"], panel=1, type="scatter", markersize=50, marker=11, color="#fa5f7e", secondary_y=False, label=""),
+                # mpf.make_addplot(df["BUY_PLUS"], panel=1, type="scatter", markersize=50, marker=10, color="#4db344", secondary_y=False, label=""),
+                # mpf.make_addplot(df["SELL_PLUS"], panel=1, type="scatter", markersize=50, marker=11, color="#fa5f7e", secondary_y=False, label=""),
             ],
             warn_too_much_data=len(df),
-            returnfig=True
+            num_panels=3 + kwargs.pop("add_panels", 0),
+            returnfig=True,
         )
+        fig.suptitle(fig._suptitle.get_text(), y=1.0, fontsize=12)
         with util.set_level(logging.getLogger("matplotlib.legend"), logging.ERROR), warnings.catch_warnings():
             warnings.filterwarnings(
                 action="ignore", category=UserWarning, message="No artists with labels found to put in legend"
@@ -158,5 +127,5 @@ class Strategy(abc.ABC):
                 _ = ax.tick_params(axis="x", labelsize=5)
                 _ = ax.tick_params(axis="y", labelsize=5)
                 _ = ax.legend(loc="upper left", fontsize=6)
-        plt.show()
+        return fig
         # fmt: on

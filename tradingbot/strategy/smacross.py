@@ -59,7 +59,22 @@ class SMACross(Strategy):
     def stop(self):  # function to be called in the end
         self.logger.debug(f"{str(self)} stopped")
 
+    def plot(self):  # function to customize strategy plot
+        fig = super().plot(engine="mplfinance", add_panels=1)
+        store_report = self.report['store'].reset_index()
 
+        # plot sma_fast, sma_slow on the main panel
+        ax = fig.get_axes()[2]
+        ax.plot(store_report.index, store_report['sma_fast'], label="sma_fast", color='blue', linewidth=1.0, alpha=0.5)
+        ax.plot(store_report.index, store_report['sma_slow'], label="sma_slow", color='orange', linewidth=1.0, alpha=0.5)
+        ax.legend(loc='upper left', fontsize=6)
+
+        # plot crossup and crossdown on an additional panel
+        ax = fig.get_axes()[-2]
+        ax.plot(store_report.index, store_report['crossup'], label="crossup", color='green', linewidth=1.0)
+        ax.plot(store_report.index, store_report['crossdown'], label="crossdown", color='red', linewidth=1.0)
+        ax.legend(loc='upper left', fontsize=6)
+        return fig
 
 
 class SMACrossFuture(Strategy):

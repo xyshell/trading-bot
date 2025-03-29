@@ -186,6 +186,13 @@ class Reporter:
         })
 
     @staticmethod
+    def get_store_report(strategy: Strategy) -> pd.DataFrame:
+        store_report = pd.concat({ts: pd.Series({k: v for k, v in store.items() if not k.startswith("_")}) for ts, store in strategy.store_history.items()})
+        store_report = store_report.unstack(level=-1)
+        store_report.index.rename("timestamp", inplace=True)
+        return store_report
+
+    @staticmethod
     def display(strategy: Strategy) -> None:
         summary_report = strategy.report["summary"] if "summary" in strategy.report else Reporter.get_summary_report(strategy)
         msg = pd.Series(
@@ -222,3 +229,5 @@ class Reporter:
         # strategy.report["order"] = Reporter.get_order_report(strategy)
         strategy.report["trade"] = Reporter.get_trade_report(strategy)
         strategy.report["summary"] = Reporter.get_summary_report(strategy)
+        strategy.report["store"] = Reporter.get_store_report(strategy)
+
