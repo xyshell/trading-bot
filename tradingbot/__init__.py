@@ -1,9 +1,12 @@
 import logging.config
+import pathlib
 
 from ._version import __version__
-from .data import Data
+from .data.core import Data
 from .strategy import Strategy
-from .model import Config, Position, MarginPosition, Account, MarginAccount
+from .config import Config
+from .position import Position
+from .account import Account
 from .order import Order
 from .bot import Bot
 from .trigger import schedule
@@ -27,6 +30,12 @@ def _print_version():
 _print_version()
 
 config = Config()
+if not config.general.log_dir:
+    log_dir = pathlib.Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    for key, value in config.logging.handlers.items():
+        if "filename" in value:
+            value["filename"] = log_dir / value["filename"]
 logging.config.dictConfig(config.logging)
 
 __all__ = [
@@ -37,5 +46,5 @@ __all__ = [
     "Position", "MarginPosition", 
     "Bot", 
     "config", "schedule", "Reporter", "Database", 
-    "Account", "MarginAccount"
+    "Account", "Account"
 ]

@@ -4,12 +4,12 @@ import pandas as pd
 import pytest
 import ccxt
 
-from tradingbot.exchange.ccxt import CCXTExchange
-from tradingbot.model import Account
+from tradingbot.exchange import CCXTExchange
+from tradingbot.account import Account
 from tradingbot.order import Order
 
 
-insufficient_funds_response = 'okx {"code":"1","data":[{"clOrdId":"e847386590ce4dBC41721bb12450fd4a","ordId":"","sCode":"51008","sMsg":"Order failed. Insufficient USDT balance in account. ","tag":"e847386590ce4dBC","ts":"1728445289108"}],"inTime":"1728445289108394","msg":"All operations failed","outTime":"1728445289108980"}'
+insufficient_funds_error_msg = 'okx {"code":"1","data":[{"clOrdId":"e847386590ce4dBC41721bb12450fd4a","ordId":"","sCode":"51008","sMsg":"Order failed. Insufficient USDT balance in account. ","tag":"e847386590ce4dBC","ts":"1728445289108"}],"inTime":"1728445289108394","msg":"All operations failed","outTime":"1728445289108980"}'
 
 create_limit_order_resp = {
     "info": {
@@ -731,14 +731,247 @@ fetch_my_trades_resp = [
         "cost": 62.3981,
         "fee": {"currency": "BTC", "cost": 1e-06},
         "fees": [{"currency": "BTC", "cost": 1e-06}],
-    }
+    },
+    {
+        "info": {
+            "fillSz": "0.049314",
+            "fillPxVol": "",
+            "fillFwdPx": "",
+            "fee": "-0.02415202464",
+            "ordId": "2334140452675280896",
+            "feeRate": "-0.0008",
+            "clOrdId": "e847386590ce4dBCa4cd091dbe6f7757",
+            "posSide": "net",
+            "fillMarkVol": "",
+            "tag": "e847386590ce4dBC",
+            "execType": "M",
+            "fillIdxPx": "",
+            "side": "sell",
+            "fillPx": "612.2",
+            "fillPnl": "0",
+            "instType": "SPOT",
+            "fillPxUsd": "",
+            "instId": "BNB-USDT",
+            "billId": "2334145535769075713",
+            "subType": "1",
+            "fillTime": "1742065357755",
+            "tradeId": "22735047",
+            "fillMarkPx": "",
+            "feeCcy": "USDT",
+            "ts": "1742065357756",
+        },
+        "timestamp": 1742065357756,
+        "datetime": "2025-03-15T19:02:37.756Z",
+        "symbol": "BNB/USDT",
+        "id": "22735047",
+        "order": "2334140452675280896",
+        "type": None,
+        "takerOrMaker": "maker",
+        "side": "sell",
+        "price": 612.2,
+        "amount": 0.049314,
+        "cost": 30.1900308,
+        "fee": {"currency": "USDT", "cost": 0.02415202464},
+        "fees": [{"currency": "USDT", "cost": 0.02415202464}],
+    },
+]
+
+fetch_positions_resp = [
+    {
+        "info": {
+            "adl": "1",
+            "availPos": "0.11",
+            "avgPx": "86185.8",
+            "baseBal": "",
+            "baseBorrowed": "",
+            "baseInterest": "",
+            "bePx": "86099.65727136433",
+            "bizRefId": "",
+            "bizRefType": "",
+            "cTime": "1743138177334",
+            "ccy": "USDT",
+            "clSpotInUseAmt": "",
+            "closeOrderAlgo": [],
+            "deltaBS": "",
+            "deltaPA": "",
+            "fee": "-0.04740219",
+            "fundingFee": "0",
+            "gammaBS": "",
+            "gammaPA": "",
+            "idxPx": "86225.7000000000000000",
+            "imr": "",
+            "instId": "BTC-USDT-SWAP",
+            "instType": "SWAP",
+            "interest": "",
+            "last": "86227.9",
+            "lever": "1",
+            "liab": "",
+            "liabCcy": "",
+            "liqPenalty": "0",
+            "liqPx": "171599.30268790442",
+            "margin": "94.80438",
+            "markPx": "86222.2",
+            "maxSpotInUseAmt": "",
+            "mgnMode": "isolated",
+            "mgnRatio": "222.03459330788485",
+            "mmr": "0.37937768",
+            "nonSettleAvgPx": "",
+            "notionalUsd": "94.82260578340001",
+            "optVal": "",
+            "pendingCloseOrdLiabVal": "",
+            "pnl": "0",
+            "pos": "0.11",
+            "posCcy": "",
+            "posId": "2370143387347345408",
+            "posSide": "short",
+            "quoteBal": "",
+            "quoteBorrowed": "",
+            "quoteInterest": "",
+            "realizedPnl": "-0.04740219",
+            "settledPnl": "",
+            "spotInUseAmt": "",
+            "spotInUseCcy": "",
+            "thetaBS": "",
+            "thetaPA": "",
+            "tradeId": "1412654781",
+            "uTime": "1743138177334",
+            "upl": "-0.0400399999999936",
+            "uplLastPx": "-0.0463099999999904",
+            "uplRatio": "-0.0004223433558659",
+            "uplRatioLastPx": "-0.0004884795407132",
+            "usdPx": "0.99977",
+            "vegaBS": "",
+            "vegaPA": "",
+        },
+        "id": "2370143387347345408",
+        "symbol": "BTC/USDT:USDT",
+        "notional": 94.82260578340001,
+        "marginMode": "isolated",
+        "liquidationPrice": 171599.30268790442,
+        "entryPrice": 86185.8,
+        "unrealizedPnl": -0.0400399999999936,
+        "realizedPnl": -0.04740219,
+        "percentage": -0.04223433558659,
+        "contracts": 0.11,
+        "contractSize": 0.01,
+        "markPrice": 86222.2,
+        "lastPrice": None,
+        "side": "short",
+        "hedged": True,
+        "timestamp": 1743138177334,
+        "datetime": "2025-03-28T05:02:57.334Z",
+        "lastUpdateTimestamp": 1743138177334,
+        "maintenanceMargin": 0.37937768,
+        "maintenanceMarginPercentage": 0.004,
+        "collateral": 94.80438,
+        "initialMargin": 94.82260578340001,
+        "initialMarginPercentage": 1.0,
+        "leverage": 1.0,
+        "marginRatio": 0.004,
+        "stopLossPrice": None,
+        "takeProfitPrice": None,
+    },
+    {
+        "info": {
+            "adl": "1",
+            "availPos": "0.11",
+            "avgPx": "86340",
+            "baseBal": "",
+            "baseBorrowed": "",
+            "baseInterest": "",
+            "bePx": "86426.38319159579",
+            "bizRefId": "",
+            "bizRefType": "",
+            "cTime": "1743137987294",
+            "ccy": "USDT",
+            "clSpotInUseAmt": "",
+            "closeOrderAlgo": [],
+            "deltaBS": "",
+            "deltaPA": "",
+            "fee": "-0.047487",
+            "fundingFee": "0",
+            "gammaBS": "",
+            "gammaPA": "",
+            "idxPx": "86225.7000000000000000",
+            "imr": "",
+            "instId": "BTC-USDT-SWAP",
+            "instType": "SWAP",
+            "interest": "",
+            "last": "86227.9",
+            "lever": "1",
+            "liab": "",
+            "liabCcy": "",
+            "liqPenalty": "0",
+            "liqPx": "",
+            "margin": "94.974",
+            "markPx": "86222.2",
+            "maxSpotInUseAmt": "",
+            "mgnMode": "isolated",
+            "mgnRatio": "222.22222222222217",
+            "mmr": "0.37937768",
+            "nonSettleAvgPx": "",
+            "notionalUsd": "94.82260578340001",
+            "optVal": "",
+            "pendingCloseOrdLiabVal": "",
+            "pnl": "0",
+            "pos": "0.11",
+            "posCcy": "",
+            "posId": "2370137010663088128",
+            "posSide": "long",
+            "quoteBal": "",
+            "quoteBorrowed": "",
+            "quoteInterest": "",
+            "realizedPnl": "-0.047487",
+            "settledPnl": "",
+            "spotInUseAmt": "",
+            "spotInUseCcy": "",
+            "thetaBS": "",
+            "thetaPA": "",
+            "tradeId": "1412645714",
+            "uTime": "1743137987294",
+            "upl": "-0.1295800000000032",
+            "uplLastPx": "-0.1233100000000064",
+            "uplRatio": "-0.0013643734074589",
+            "uplRatioLastPx": "-0.0012983553393561",
+            "usdPx": "0.99977",
+            "vegaBS": "",
+            "vegaPA": "",
+        },
+        "id": "2370137010663088128",
+        "symbol": "BTC/USDT:USDT",
+        "notional": 94.82260578340001,
+        "marginMode": "isolated",
+        "liquidationPrice": None,
+        "entryPrice": 86340.0,
+        "unrealizedPnl": -0.1295800000000032,
+        "realizedPnl": -0.047487,
+        "percentage": -0.13643734074589,
+        "contracts": 0.11,
+        "contractSize": 0.01,
+        "markPrice": 86222.2,
+        "lastPrice": None,
+        "side": "long",
+        "hedged": True,
+        "timestamp": 1743137987294,
+        "datetime": "2025-03-28T04:59:47.294Z",
+        "lastUpdateTimestamp": 1743137987294,
+        "maintenanceMargin": 0.37937768,
+        "maintenanceMarginPercentage": 0.004,
+        "collateral": 94.974,
+        "initialMargin": 94.82260578340001,
+        "initialMarginPercentage": 1.0,
+        "leverage": 1.0,
+        "marginRatio": 0.0039,
+        "stopLossPrice": None,
+        "takeProfitPrice": None,
+    },
 ]
 
 
 @pytest.fixture(scope="function")
 def mock_okx_create_order_insufficient_funds():
     mock = MagicMock(spec=ccxt.okx)
-    mock.create_order.side_effect = ccxt.errors.InsufficientFunds(insufficient_funds_response)
+    mock.create_order.side_effect = ccxt.errors.InsufficientFunds(insufficient_funds_error_msg)
     return mock
 
 
@@ -810,6 +1043,10 @@ def mock_okx_fetch_my_trades():
 # exchange.client.fetch_order_book("BTC/USDT")
 # exchange.client.fetch_ohlcv("BTC/USDT", timeframe="1m", since=None, limit=10)
 # exchagne.client.fetch_trades("BTC/USDT", since=None, limit=10)
+
+# private API
+# exchange.client.fetch_balance()
+# exchange.client.fetch_my_trades()
 
 
 class TestCCXT:
@@ -996,7 +1233,7 @@ class TestCCXTExchange:
     @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
     def test_new2rejected(self, mock_client):
         exchange = CCXTExchange()
-        mock_client.create_order.side_effect = ccxt.InsufficientFunds(insufficient_funds_response)
+        mock_client.create_order.side_effect = ccxt.InsufficientFunds(insufficient_funds_error_msg)
         mock_client.fetch_order.return_value = fetch_order_filled_market_order_buy_resp
 
         exchange.strategy = MagicMock()
@@ -1032,16 +1269,16 @@ class TestCCXTExchange:
 
     # def test_create_order_limit(self):
     #     exchange = CCXTExchange()
-        
+
     #     # # spot
     #     # order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
     #     # assert order
-        
+
     #     # perpetual future
     #     symbol = "BTC/USDT:USDT"
     #     exchange.client.set_leverage(10, symbol, params={"mgnMode": "isolated", "posSide": "long"})
     #     # ccxt.base.errors.ExchangeError: okx {"code":"59101","data":[],"msg":"Leverage can't be modified. Please cancel all pending isolated margin orders before adjusting the leverage."}
-    #     order = exchange.client.create_order(symbol=symbol, type="limit", side="buy", amount=0.01, price=30_100, 
+    #     order = exchange.client.create_order(symbol=symbol, type="limit", side="buy", amount=0.01, price=30_100,
     #                                          params={"posSide": "long", "marginMode": "isolated", "hedged": False})
     #     assert order
 
@@ -1081,59 +1318,65 @@ class TestCCXTExchange:
     #     assert order
 
     # def test_fetch_balance(self):
-    #     exchange = CCXTExchange()
+    #     exchange = CCXTExchange()fetch_balance
     #     balance = exchange.client.fetch_balance()
     #     balance = exchange.client.fetch_balance({"ccy": "BTC"})
     #     balance = exchange.client.fetch_balance({"ccy": "BTC,ETH"})
-        
+
     #     balance['info']['data'][0]['totalEq']  # total equity
     #     balance['info']['data'][0]['details'][1]  # detail by coin
     #     {
-    #         'accAvgPx': '46416.262714480996', 
-    #         'availBal': '0.02040934245', 
-    #         'availEq': '0.02040934245', 
-    #         'borrowFroz': '', 
-    #         'cashBal': '0.02040934245', 
-    #         'ccy': 'BTC', 
-    #         'clSpotInUseAmt': '', 
-    #         'crossLiab': '', 
-    #         'disEq': '1811.6926736452192', 
-    #         'eq': '0.02040934245', 
-    #         'eqUsd': '1848.6659935155299', 
-    #         'fixedBal': '0', 
-    #         'frozenBal': '0', 
-    #         'imr': '0', 
-    #         'interest': '', 
-    #         'isoEq': '0', 
-    #         'isoLiab': '', 
-    #         'isoUpl': '0', 
-    #         'liab': '', 
-    #         'maxLoan': '', 
-    #         'maxSpotInUse': '', 
-    #         'mgnRatio': '', 
-    #         'mmr': '0', 
-    #         'notionalLever': '0', 
-    #         'openAvgPx': '74238.00254099998', 
-    #         'ordFrozen': '0', 
-    #         'rewardBal': '0', 
-    #         'smtSyncEq': '0', 
-    #         'spotBal': '0.02040934245', 
-    #         'spotCopyTradingEq': '0', 
-    #         'spotInUseAmt': '', 
-    #         'spotIsoBal': '0', 
-    #         'spotUpl': '333.51717685229113', 
-    #         'spotUplRatio': '0.2201217287598091', 
-    #         'stgyEq': '0', 
-    #         'totalPnl': '901.3405925265206', 
-    #         'totalPnlRatio': '0.9514582756733003', 
-    #         'twap': '0', 
-    #         'uTime': '1731690061466', 
-    #         'upl': '0', 
+    #         'accAvgPx': '46416.262714480996',
+    #         'availBal': '0.02040934245',
+    #         'availEq': '0.02040934245',
+    #         'borrowFroz': '',
+    #         'cashBal': '0.02040934245',
+    #         'ccy': 'BTC',
+    #         'clSpotInUseAmt': '',
+    #         'crossLiab': '',
+    #         'disEq': '1811.6926736452192',
+    #         'eq': '0.02040934245',
+    #         'eqUsd': '1848.6659935155299',
+    #         'fixedBal': '0',
+    #         'frozenBal': '0',
+    #         'imr': '0',
+    #         'interest': '',
+    #         'isoEq': '0',
+    #         'isoLiab': '',
+    #         'isoUpl': '0',
+    #         'liab': '',
+    #         'maxLoan': '',
+    #         'maxSpotInUse': '',
+    #         'mgnRatio': '',
+    #         'mmr': '0',
+    #         'notionalLever': '0',
+    #         'openAvgPx': '74238.00254099998',
+    #         'ordFrozen': '0',
+    #         'rewardBal': '0',
+    #         'smtSyncEq': '0',
+    #         'spotBal': '0.02040934245',
+    #         'spotCopyTradingEq': '0',
+    #         'spotInUseAmt': '',
+    #         'spotIsoBal': '0',
+    #         'spotUpl': '333.51717685229113',
+    #         'spotUplRatio': '0.2201217287598091',
+    #         'stgyEq': '0',
+    #         'totalPnl': '901.3405925265206',
+    #         'totalPnlRatio': '0.9514582756733003',
+    #         'twap': '0',
+    #         'uTime': '1731690061466',
+    #         'upl': '0',
     #         'uplLiab': ''
     #     }
     #     balance['timestamp'], balance['datetime']  # record time
     #     balance['free'], balance['used'], balance['total']  # free, used, total by coin
     #     ticker = "USDT/BTC"
-    #     coin_detail = balance.get(util.get_base_ticker(ticker))
+    #     coin_detail = balance.get(util.get_base_asset(ticker))
     #     coin_detail['free'], coin_detail['used'], coin_detail['total']
     #     assert balance
+
+
+if __name__ == "__main__":
+    exchange = CCXTExchange()
+    client = exchange.client
+    print(client)

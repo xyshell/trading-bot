@@ -1,20 +1,21 @@
 [general]
-# db_url = "sqlite:///D:\\tradingbot.db" # override path to create local db
+db_url = "sqlite:///:memory:" # override path for local db, e.g. "sqlite:///D:\\tradingbot.db"
+# strategy_dir = ""  # override path for strategy directory
+# log_dir = ""  # override path for log directory
 # http_proxy = "http://127.0.0.1:7890"
 # https_proxy = "http://127.0.0.1:7890"
 
-# ---------------------------------  Data settings ---------------------------------
-
+# ---------------------------------  Data Fetching API settings ---------------------------------
 [source.binance]
-api_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-api_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+api_key = "1234567890abcdef1234567890ABCDEF"
+api_secret = "abcdef1234567890ABCDEF1234567890"
 
 # ---------------------------------  Exchange settings ---------------------------------
 
 [exchange.ccxt]
 name = "okx"
-api_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-secret_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+api_key = "1234567890abcdef1234567890ABCDEF"
+secret_key = "abcdef1234567890ABCDEF1234567890"
 
 # ---------------------------------  Logging settings ---------------------------------
 

@@ -2,15 +2,16 @@ import importlib
 import logging
 import warnings
 
+import concurrent
 import requests
 from retry import retry
 from typing_extensions import Annotated
 import pandas as pd
 import sqlalchemy as sa
 
-import tradingbot as tb
 import tradingbot.util as util
-from tradingbot.model import ModeType
+from tradingbot.config import Config
+from tradingbot.util import ModeType
 from tradingbot.data.core import Data
 from tradingbot.database import Database
 
@@ -99,7 +100,8 @@ class Candlestick(Data):
         load_len = kwargs.pop("load_len", self.load_len)
         since = kwargs.pop("since", None)
 
-        engine = Database.get_engine(tb.config.general.db_url)
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
         table = Database.get_data_table(self.__class__, self.table_name)
 
         sql = (
@@ -119,7 +121,8 @@ class Candlestick(Data):
         return df.reset_index(drop=True)
 
     def set(self, now: pd.Timestamp, df: pd.DataFrame, **kwargs) -> None:
-        engine = Database.get_engine(tb.config.general.db_url)
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
         table = Database.get_data_table(self.__class__, self.table_name)
 
         df = df.loc[df["close_time"] <= now].copy()  # only save closed candles
@@ -146,6 +149,45 @@ class Candlestick(Data):
             result = conn.execute(upsert_stmt)
             conn.commit()
             logger.debug(f"upsert affected {result.rowcount} rows in {self.table_name}")
+
+    @classmethod
+    def display(cls, source: str) -> pd.DataFrame:
+        """Display basic stats of candlestick data
+        
+        Args:
+            source (str): source name
+        
+        Returns:
+            pd.DataFrame
+        """
+        config = Config()
+        engine = Database.get_engine(config.general.db_url)
+        metadata = sa.MetaData()
+        metadata.reflect(engine)
+        tables = [table_name for table_name in metadata.tables.keys() if table_name.startswith(f"candlestick_{source}")]
+        freqs = [table_name.split("_")[-1] for table_name in tables]
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {}
+            for freq in freqs:
+                table = Database.get_data_table(cls, f"candlestick_{source}_{freq}")
+                query = (
+                    sa.select(
+                        table.c.ticker, 
+                        sa.func.min(table.c.close_time).label("close_time_min"), 
+                        sa.func.max(table.c.close_time).label("close_time_max"), 
+                        sa.func.count(table.c.close_time).label("close_time_count"),
+                        sa.func.avg(table.c.close).label("close_avg"),
+                        sa.func.avg(table.c.base_volume).label("base_volume_avg")
+                    )
+                    .group_by(table.c.ticker)
+                    .order_by(table.c.ticker)
+                )
+                futures[freq] = executor.submit(pd.read_sql, query, con=engine.connect())
+        df = pd.concat({freq: future.result().set_index("ticker") for freq, future in futures.items()})
+        df.index.rename("freq", level=0, inplace=True)
+        df = df.swaplevel(0, 1).sort_values("close_time_max", ascending=False).reset_index()
+        return df
 
 
 class YahooCandlestick(Candlestick):
@@ -208,7 +250,7 @@ class BinanceCandlestick(Candlestick):
         **kwargs,
     ):
         super().__init__(ticker=ticker, freq=freq, **kwargs)
-        config = tb.config
+        config = Config()
         self._api_key = api_key or config.source.binance.api_key
         self._api_secret = api_secret or config.source.binance.api_secret
         self._http_proxy = http_proxy or config.general.http_proxy
@@ -278,7 +320,7 @@ class OkxCandlestick(Candlestick):
 
     def __init__(self, *_, ticker: str, freq: str, http_proxy: str = None, https_proxy: str = None, **kwargs):
         super().__init__(ticker=ticker, freq=freq, **kwargs)
-        config = tb.config
+        config = Config()
         self._http_proxy = http_proxy or config.general.http_proxy
         self._https_proxy = https_proxy or config.general.https_proxy
 

@@ -3,9 +3,14 @@ from typing import Sequence
 
 
 import tradingbot as tb
-from tradingbot.model import MarginAccount
+from tradingbot.account import Account
+from tradingbot.balance import Balance
+from tradingbot.data.candlestick import Candlestick
+from tradingbot.exchange.core import FakeExchange
 from tradingbot.order import Order
+from tradingbot.trader import Trader
 import tradingbot.util as util
+from . import assert_report
 
 
 class _SMACross(tb.Strategy):
@@ -93,6 +98,12 @@ class _SMACrossLS(tb.Strategy):
 class _LimitOrderDummy(tb.Strategy):
     param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
 
+    def __init__(self):
+        super().__init__()
+        self.trader = Trader(FakeExchange(commission=0.001))
+        self.balance = Balance(USDT=1000)
+        self.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
     def next(self, context: dict) -> Order | Sequence[Order] | None:
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
@@ -120,24 +131,6 @@ class _LimitOrderDummy(tb.Strategy):
                 
 
 class TestBacktestSpotStrategy:
-    def test_btcusdt(self, snapshot):
-        # fmt: off
-        bot = tb.Bot(
-            mode="backtest",  # or "live"
-            start="2024-01-01", end="2024-01-10",  # for backtest mode
-        )
-        # fmt: on
-        bot.data = {
-            # subscribe to USDT/BTC 1h OHLCV from binance
-            "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
-        }
-        bot.strategy = _SMACross(ticker="USDT/BTC", fast=10, slow=30)
-        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
-        bot.run()
-
-        assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
-        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
 
     def test_msft(self, snapshot):
         class _SMACross(tb.Strategy):
@@ -264,10 +257,7 @@ class TestBacktestSpotStrategy:
     def test_limit_order(self, snapshot):
 
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
-        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
-        bot.strategy = _LimitOrderDummy()
-        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
+        bot.add_strategy(_LimitOrderDummy())
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -280,7 +270,6 @@ class TestBacktestSpotStrategy:
         bot = tb.Bot(
             mode="backtest",  # or "live"
             start="2024-01-01", end="2024-01-10",  # for backtest mode
-            preload=True,
         )
         # fmt: on
         bot.data = {
@@ -307,7 +296,7 @@ class TestBacktestFutureStrategy:
         }
         bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=10)
-        bot.account = MarginAccount.create({"USDT": 1_000})
+        bot.account = Account.create({"USDT": 1_000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -325,7 +314,7 @@ class TestBacktestFutureStrategy:
         }
         bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=100)  # 100x leverage
-        bot.account = MarginAccount.create({"USDT": 1_000})
+        bot.account = Account.create({"USDT": 1_000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -364,7 +353,7 @@ class TestBacktestFutureStrategy:
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
         bot.strategy = Test()
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.001, leverage=10)
-        bot.account = tb.MarginAccount.create({"USDT": 1000})
+        bot.account = tb.Account.create({"USDT": 1000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -373,3 +362,29 @@ class TestBacktestFutureStrategy:
         assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
 
+def test_dummy_limit_order_strategy(snapshot):
+
+    class DummyLimitOrder(tb.Strategy):
+        def __init__(self):
+            super().__init__()
+            self.trader = Trader(FakeExchange(commission=0.001))
+            self.balance = Balance(USDT=10_000)
+            self.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+
+        @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
+        def next(self) -> Order | Sequence[Order] | None:
+            curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
+
+            for order in self.order:
+                if order.action.value == "buy" and order.param["price"] < curr_prc * 0.97:
+                    self.exchange.cancel(order)
+                    self.balance.convert(0.5, "PCTG", "USDT", "BTC", trader=self.trader, method="limit", param={"price": curr_prc * 0.98})
+                
+            if not self.order:
+                self.balance.convert(0.5, "PCTG", "USDT", "BTC", trader=self.trader, method="limit", param={"price": curr_prc * 0.98})
+
+    bot = tb.Bot(mode="backtest", start="2024-09-01", end="2024-10-01")
+    bot.add_strategy(DummyLimitOrder())
+    bot.run()
+
+    assert_report(bot.strategy.report, snapshot)
