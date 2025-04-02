@@ -100,13 +100,11 @@ class BacktestPipeline(Pipeline):
         # update data
         self._update_data(now, strategy.data)
 
-        # execute pending orders
         # self._mark_to_market(strategy)
 
-        # TODO: move elsewhere
-        # for order in strategy.orders:
-        #     strategy.exchange.execute(now, order)
-        #     strategy.exchange.update_order(now, order)
+        # execute pending orders
+        for order in strategy.order:
+            strategy.trader.exchange.execute(order.type.value, order)
         # self._mark_to_market(strategy)
 
     def _post(self, now: pd.Timestamp, strategy: Strategy):

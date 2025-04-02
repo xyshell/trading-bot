@@ -29,12 +29,7 @@ class Trader:
     def __repr__(self):
         return f"Trader(exchange={self.exchange})"
 
-    @util.dispatch
-    def implement(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
-        raise NotImplementedError()
-
-    @implement.register((__qualname__, "market"))
-    def _(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+    def _get_action_ticker(self, frm: str, to: str) -> tuple[str, str]:
         markets = self.exchange.load_markets()
         if f"{frm}/{to}" in markets:
             ticker = f"{frm}/{to}"
@@ -44,6 +39,16 @@ class Trader:
             action = "sell"
         else:
             raise NotImplementedError(f"{frm} -> {to}")
+    
+        return action, ticker 
+
+    @util.dispatch
+    def implement(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+        raise NotImplementedError(method)
+
+    @implement.register((__qualname__, "market"))
+    def _(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+        action, ticker = self._get_action_ticker(frm, to)
 
         prc = self.strategy.data.ticker2close[ticker]
         order = Order(
@@ -55,6 +60,22 @@ class Trader:
             updated_at=self.strategy.now
         )
         order = self.exchange.execute("market", order)
+
+    @implement.register((__qualname__, "limit"))
+    def _(self, method: str, frm_qty: float, frm: str, to: str, param: dict):
+        action, ticker = self._get_action_ticker(frm, to)
+
+        prc = self.strategy.data.ticker2close[ticker]
+        order = Order(
+            action=action, 
+            ticker=ticker, 
+            amount=frm_qty / prc if action == "buy" else frm_qty, 
+            type="limit", 
+            param=param,
+            created_at=self.strategy.now, 
+            updated_at=self.strategy.now
+        )
+        order = self.exchange.execute("limit", order)
 
     # @util.validate
     # def submit(self, order: Order, algo: Algo = Algo.PASSIVE) -> None:

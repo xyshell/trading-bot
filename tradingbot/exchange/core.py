@@ -25,13 +25,18 @@ class Exchange:
         return f"{self.__class__.__name__}()"
     
     @abc.abstractmethod
-    def execute(self, order: Order):
+    def execute(self, order: Order) -> Order:
         """Execute an order"""
         pass
 
     @abc.abstractmethod
-    def update(self, order: Order):
+    def update(self, order: Order) -> Order:
         """Update status of an order"""
+        pass
+
+    @abc.abstractmethod
+    def cancel(self, order: Order) -> Order:
+        """Cancel an order"""
         pass
 
     @abc.abstractmethod
@@ -54,7 +59,23 @@ class Exchange:
 
     @abc.abstractmethod
     def load_markets(self, market_type: str | None = None) -> dict:
-        pass
+        """Load tradable tickers in the market
+
+        Args:
+            market_type (str): "spot", "future", "swap", "option", defaults to load all
+
+        Returns:
+            dict: 
+            {
+                "USDT/BTC": {
+                    "quote": "USDT",
+                    "base": "BTC",
+                    "type": "spot",
+                    ...
+                }
+                ...
+            }
+        """
 
 
 class RealExchange(Exchange):
@@ -62,7 +83,7 @@ class RealExchange(Exchange):
 
 
 class FakeExchange(Exchange):
-    """Fake exchange used for backtest and paper trading"""
+    """Fake exchange for backtest and paper trading"""
 
     @util.validate
     def __init__(self, commission: float = 0.0, **kwargs) -> None:
@@ -73,95 +94,11 @@ class FakeExchange(Exchange):
 
     def __repr__(self):
         return f"{self.__class__.__name__}(commission={self._commission})"
-    
-    def update_order(self, order: Order):
-        if order.status in {Order.Status.FILLED, Order.Status.REJECTED, Order.Status.CANCELED, Order.Status.EXPIRED}:
-            self.strategy.order_history.append((self.strategy.now, order))
-            if order in self.strategy.open_order:
-                self.strategy.open_order.remove(order)
-        elif order.status in {Order.Status.PARTIAL_FILLED, Order.Status.PENDING}:
-            if order not in self.strategy.open_order:
-                self.strategy.open_order.append(order)
-
-    def _order2qty(self, order: Order, exec_prc: float) -> tuple[float, float]:
-        frm_asset, to_asset = order.frm_asset, order.to_asset
-        quote_ticker, base_ticker = util.get_quote_asset(order.ticker), util.get_base_asset(order.ticker)
-
-        match order.size_type:
-            case Order.SizeType.PCTG:
-                from_qty = self.strategy.account[frm_asset].qty * order.size
-                _, to_qty = util.convert((frm_asset, from_qty), order.ticker, exec_prc)
-            case Order.SizeType.BASE if to_asset == base_ticker:
-                to_qty = order.size
-                _, from_qty = util.convert((to_asset, to_qty), order.ticker, exec_prc)
-            case Order.SizeType.QUOTE if to_asset == quote_ticker:
-                to_qty = order.size
-                _, from_qty = util.convert((to_asset, to_qty), order.ticker, exec_prc)
-            case Order.SizeType.BASE if frm_asset == base_ticker:
-                from_qty = order.size
-                _, to_qty = util.convert((frm_asset, from_qty), order.ticker, exec_prc)
-            case Order.SizeType.QUOTE if frm_asset == quote_ticker:
-                from_qty = order.size
-                _, to_qty = util.convert((frm_asset, from_qty), order.ticker, exec_prc)
-            case _:
-                raise NotImplementedError(f"Order size type {order.size_type} is not supported yet.")
-
-        return from_qty, to_qty
 
     def _reconcile(self, order: Order, exec_prc: float) -> Order:
-        frm_asset, to_asset = order.frm_asset, order.to_asset
-        from_qty, to_qty = self._order2qty(order, exec_prc)
-
-        if self.action in {Order.Action.BUY, Order.Action.SELL}:
-            if frm_asset == self.strategy.account.base_currency:  # enter market
-                from_pos = Position(asset=frm_asset, qty=from_qty)
-                to_pos = SpotPosition(asset=to_asset, qty=to_qty * (1 - self._commission), entry_cost=from_pos)
-                tcost_pos = Position(asset=to_asset, qty=to_qty * self._commission)  # charge tcost in to_asset, i.e. get less
-            elif to_asset == self.strategy.account.base_currency:  # exit market
-                from_pos = Position(asset=frm_asset, qty=from_qty)
-                to_pos = Position(asset=to_asset, qty=to_qty * (1 - self._commission))
-                tcost_pos = Position(asset=to_asset, qty=to_qty * self._commission)  # charge tcost in to_asset, i.e. get less
-        else:
-            raise NotImplementedError
-        
-
-        trans = Transaction(from_pos=from_pos, to_pos=to_pos, tcost_pos=tcost_pos, timestamp=self.strategy.now)
-        if not trans:
-            order.status = Order.Status.REJECTED
-            order.updated_at = self.strategy.now
-            logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to trivial transaction, transaction={trans}")
-            return order
-
-        account = self.strategy.account
-        account += to_pos
-        account -= from_pos
-
-        if self.action in {Order.Action.BUY, Order.Action.SELL} and not account.is_sufficient():
-            order.status = Order.Status.REJECTED
-            order.updated_at = self.strategy.now
-            logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to insufficient capital, account={self.strategy.account}")
-            return order
-
-        self.strategy.account = account
-        self.strategy.transaction_history.append(trans)
-
-        order.status = Order.Status.FILLED
-        order.updated_at = self.strategy.now
-        order.filled_at = self.strategy.now
-        logger.debug(f"Order(ID={id(order)}) Filled: {order}, transaction={trans}")
-        return order
-
-    @util.dispatch
-    def execute(self, order_type: str, *args, **kwargs) -> Order:
-        raise NotImplementedError(order_type)
-
-    @execute.register((__qualname__, "market"))
-    def _(self, order_type: str, order: Order) -> Order:
         markets = self.load_markets()
         market_type = markets[order.ticker]['type']
 
-        ticker2close = self.strategy.data.ticker2close
-        exec_prc = ticker2close[order.ticker]
         if order.action == Order.Action.BUY:
             if market_type == "spot":
                 frm = util.get_quote_asset(order.ticker)
@@ -177,8 +114,8 @@ class FakeExchange(Exchange):
                 frm = order.ticker
                 to = util.get_margin_asset(order.ticker)
 
-        frm_qty = exec_prc * order.amount if order.action == Order.Action.BUY else order.amount
-        to_qty = exec_prc * order.amount if order.action == Order.Action.SELL else order.amount
+        frm_qty = exec_prc * order.amount if order.action is Order.Action.BUY else order.amount
+        to_qty = exec_prc * order.amount if order.action is Order.Action.SELL else order.amount
         tcost = to_qty * self._commission
         to_qty -= tcost  # charge tcost in <to> asset, i.e. get less
 
@@ -193,42 +130,65 @@ class FakeExchange(Exchange):
         else:
             order.status = Order.Status.FILLED
             order.filled_at = self.strategy.now
-            self.strategy.order_history.append(order)
             trans = Transaction(frm, frm_qty, to, to_qty, frm, tcost, order.ticker, exec_prc, timestamp=self.strategy.now)
             self.strategy.transaction_history.append(trans)
             self.strategy.balance.data = new_balance.data
         finally:
             order.updated_at = self.strategy.now
+            self.strategy.order_history.append(order)
+            if order in self.strategy.order:
+                self.strategy.order.remove(order)
 
+        return order
+
+    @util.dispatch
+    def execute(self, order_type: str, *args, **kwargs) -> Order:
+        raise NotImplementedError(order_type)
+
+    @execute.register((__qualname__, "market"))
+    def _(self, order_type: str, order: Order) -> Order:
+        ticker2close = self.strategy.data.ticker2close
+        exec_prc = ticker2close[order.ticker]
+
+        order = self._reconcile(order, exec_prc)
         return order
 
     @execute.register((__qualname__, "limit"))
     def _(self, order_type: str, order: Order) -> Order:
-        assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
-        assert order.action in {Order.Action.BUY, Order.Action.SELL}, f"Invalid order action: {order.action}"
-        if order.status in (Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED):
+        if order.status in {Order.Status.CANCELED, Order.Status.REJECTED, Order.Status.FILLED}:
             return order
 
         candle = self.strategy.data.ticker2candle[order.ticker]
-        match order.type:
-            case Order.Type.LIMIT if order.status is Order.Status.NEW:
+        match order.status:
+            case Order.Status.NEW:
                 if order.action is Order.Action.BUY and order.param["price"] >= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
                 elif order.action is Order.Action.SELL and order.param["price"] <= candle["close"].iloc[-1]:
                     exec_prc = candle["close"].iloc[-1]
                 else:
                     order.status = Order.Status.PENDING
+                    order.updated_at = self.strategy.now
+                    if order not in self.strategy.order:
+                        self.strategy.order.append(order)
                     return order
-            case Order.Type.LIMIT if order.status is Order.Status.PENDING:
+            case Order.Status.PENDING | order.Status.PARTIAL_FILLED:
                 high = candle["high"].iloc[-1]
                 low = candle["low"].iloc[-1]
                 if low <= order.param["price"] <= high:
                     exec_prc = order.param["price"]
                 else:
+                    order.updated_at = self.strategy.now
+                    if order not in self.strategy.order:
+                        self.strategy.order.append(order)
                     return order
 
         order = self._reconcile(order, exec_prc)
         return order
+
+    def cancel(self, order: Order) -> Order:
+        order.status = Order.Status.CANCELED
+        if order in self.strategy.order:
+            self.strategy.remove(order)
 
     def fetch_tickers(self, tickers: list[str]) -> dict:
         """Fetch latest info for tickers

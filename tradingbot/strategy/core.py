@@ -28,7 +28,7 @@ class Strategy(abc.ABC):
         self.report_currency: str = kwargs.pop("report_currency", "USDT")
         self.param.update(kwargs)  # override default param
 
-        # self.orders: list[Order] = []  # keep track of all open orders, TODO: consider order as low-level API and moving to trader
+        self.order: list[Order] = []  # keep track of all open orders
         self.order_history: list[Order] = []  # record all filled orders
         self.balance: Balance  # current balance
         self.balance_history: dict[pd.Timestamp, Balance] = {}  # record all positions

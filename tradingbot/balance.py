@@ -77,13 +77,16 @@ class Balance(UserDict):
         self.convert(50, "QTY", "USDT", "BTC", trader=trader)  # convert [50] [USDT] to [BTC]
         
         3. split into 5 market orders, delay 60s between each order
-        self.convert(1.0, "USDT", "BTC", trader=trader, method="market", param={"n": 5, "delay": 60})
+        self.convert(1.0, "PCTG", "USDT", "BTC", trader=trader, param={"n": 5, "delay": 60})
 
-        4. place a limit order at 80_000, wait for 300s, if not filled, split into 5 market orders with 60s delay in between 
-        self.convert(1.0, "USDT", "BTC", trader=trader, method="limit2market", param={"price": 80_000, "wait": 300, "n": 5, "delay": 60})
+        4. place a limit order at 80_000
+        self.convert(1.0, "PCTG", "USDT", "BTC", trader=trader, method="limit", param={"price": 80_000})
 
-        5. place a limit order at 80_000, wait for 300s, if not filled, cancel it
-        self.convert(1.0, "USDT", "BTC", trader=trader, method="limit2cancel", param={"price": 80_000, "wait": 300})
+        5. place a limit order at 80_000, wait for 300s, if not filled, split into 5 market orders with 60s delay in between 
+        self.convert(1.0, "PCTG", "USDT", "BTC", trader=trader, method="limit2market", param={"price": 80_000, "wait": 300, "n": 5, "delay": 60})
+
+        6. place a limit order at 80_000, wait for 300s, if not filled, cancel it
+        self.convert(1.0, "PCTG", "USDT", "BTC", trader=trader, method="limit2cancel", param={"price": 80_000, "wait": 300})
 
         Args:
             size (float): size of the conversion
