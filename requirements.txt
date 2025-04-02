@@ -1,6 +1,6 @@
 pydantic==2.10.6
 pydantic-settings==2.2.1
-numpy==2.1.2
+numpy==2.2.4
 pandas==2.2.3
 SQLAlchemy==2.0.36
 retry==0.9.2
@@ -8,11 +8,11 @@ psutil==6.1.0
 psycopg2==2.9.10
 
 # data
-yfinance==0.2.54  # optional
+yfinance==0.2.55  # optional
 python-binance==1.0.28  # optional
 
 # exchange
-ccxt==4.4.34  # optional
+ccxt==4.4.71  # optional
 
 # slack
 slack_sdk  # optional
@@ -25,6 +25,6 @@ dask[complete]==2025.2.0
 
 # dev only
 pytest==8.3.5
-syrupy==4.8.0
+syrupy==4.9.1
 ruff==0.7.1
 build==1.2.2.post1
