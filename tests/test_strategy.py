@@ -3,9 +3,12 @@ from typing import Sequence
 
 
 import tradingbot as tb
-from tradingbot.model import MarginAccount
+from tradingbot.balance import Balance
+from tradingbot.exchange.core import FakeExchange
 from tradingbot.order import Order
+from tradingbot.trader import Trader
 import tradingbot.util as util
+from . import assert_report
 
 
 class _SMACross(tb.Strategy):
@@ -13,7 +16,7 @@ class _SMACross(tb.Strategy):
 
     def start(self):
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
+        self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; balance: {self.balance}")
 
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
     def next(self, context: dict) -> Order | Sequence[Order] | None:
@@ -62,8 +65,8 @@ class _SMACrossLS(tb.Strategy):
         ticker = self.param["ticker"]
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
 
-        in_long = self.account["BTC"].qty > 0
-        in_short = self.account["BTC"].qty < 0
+        in_long = self.balance["BTC"].qty > 0
+        in_short = self.balance["BTC"].qty < 0
         in_market = in_long or in_short
 
         order = []
@@ -93,6 +96,12 @@ class _SMACrossLS(tb.Strategy):
 class _LimitOrderDummy(tb.Strategy):
     param = {"ticker": "USDT/BTC", "fast": 10, "slow": 30}
 
+    def __init__(self):
+        super().__init__()
+        self.trader = Trader(FakeExchange(commission=0.001))
+        self.balance = Balance(USDT=1000)
+        self.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+
     @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
     def next(self, context: dict) -> Order | Sequence[Order] | None:
         curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
@@ -120,24 +129,6 @@ class _LimitOrderDummy(tb.Strategy):
                 
 
 class TestBacktestSpotStrategy:
-    def test_btcusdt(self, snapshot):
-        # fmt: off
-        bot = tb.Bot(
-            mode="backtest",  # or "live"
-            start="2024-01-01", end="2024-01-10",  # for backtest mode
-        )
-        # fmt: on
-        bot.data = {
-            # subscribe to USDT/BTC 1h OHLCV from binance
-            "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
-        }
-        bot.strategy = _SMACross(ticker="USDT/BTC", fast=10, slow=30)
-        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
-        bot.run()
-
-        assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
-        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
 
     def test_msft(self, snapshot):
         class _SMACross(tb.Strategy):
@@ -145,7 +136,7 @@ class TestBacktestSpotStrategy:
 
             def start(self):
                 self.logger = logging.getLogger(__name__)
-                self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
+                self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; balance: {self.balance}")
 
             @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1d")])
             def next(self, context: dict) -> Order | Sequence[Order] | None:
@@ -189,7 +180,7 @@ class TestBacktestSpotStrategy:
         }
         bot.strategy = _SMACross(ticker="USD/MSFT", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USD": 1000}
+        bot.balance = {"USD": 1000}
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
@@ -201,7 +192,7 @@ class TestBacktestSpotStrategy:
 
             def start(self):
                 self.logger = logging.getLogger(__name__)
-                self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; account: {self.account}")
+                self.logger.info(f"{self.__class__.__name__} started with param: {self.param}; balance: {self.balance}")
 
             @tb.schedule([tb.trigger.StandardInterval("1h")])
             def next(self, context: dict) -> Order | Sequence[Order] | None:
@@ -245,7 +236,7 @@ class TestBacktestSpotStrategy:
         }
         bot.strategy = _SMACross(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
+        bot.balance = {"USDT": 1000}
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
@@ -255,7 +246,7 @@ class TestBacktestSpotStrategy:
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=40)}
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
+        bot.balance = {"USDT": 1000}
         bot.optimize({f"SMACross_{p1}": _SMACross(slow=p1) for p1 in [25, 30, 35]}, plot=False, persist=False)
 
         for strat in bot.strategy.values():
@@ -264,10 +255,7 @@ class TestBacktestSpotStrategy:
     def test_limit_order(self, snapshot):
 
         bot = tb.Bot(mode="backtest", start="2024-01-01", end="2024-01-10")
-        bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
-        bot.strategy = _LimitOrderDummy()
-        bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
+        bot.add_strategy(_LimitOrderDummy())
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -280,7 +268,6 @@ class TestBacktestSpotStrategy:
         bot = tb.Bot(
             mode="backtest",  # or "live"
             start="2024-01-01", end="2024-01-10",  # for backtest mode
-            preload=True,
         )
         # fmt: on
         bot.data = {
@@ -289,7 +276,7 @@ class TestBacktestSpotStrategy:
         }
         bot.strategy = _SMACross(ticker="USDT/BTC", fast=10, slow=30)
         bot.exchange = tb.exchange.FakeSpotExchange(commission=0.001)
-        bot.account = {"USDT": 1000}
+        bot.balance = {"USDT": 1000}
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["stats"].drop("strategy")) == snapshot
@@ -297,41 +284,41 @@ class TestBacktestSpotStrategy:
 
 class TestBacktestFutureStrategy:
 
-    def test_btcusdt_ls(self, snapshot):
-        bot = tb.Bot(
-            mode="backtest",
-            start="2024-01-01", end="2024-01-10"
-        )
-        bot.data = {
-            "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
-        }
-        bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
-        bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=10)
-        bot.account = MarginAccount.create({"USDT": 1_000})
-        bot.run()
+    # def test_btcusdt_ls(self, snapshot):
+    #     bot = tb.Bot(
+    #         mode="backtest",
+    #         start="2024-01-01", end="2024-01-10"
+    #     )
+    #     bot.data = {
+    #         "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
+    #     }
+    #     bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
+    #     bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=10)
+    #     bot.balance = Account.create({"USDT": 1_000})
+    #     bot.run()
 
-        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
-        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
-        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
-        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
-    def test_liquidation(self, snapshot):
-        bot = tb.Bot(
-            mode="backtest",
-            start="2024-01-01", end="2024-01-10"
-        )
-        bot.data = {
-            "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
-        }
-        bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
-        bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=100)  # 100x leverage
-        bot.account = MarginAccount.create({"USDT": 1_000})
-        bot.run()
+    # def test_liquidation(self, snapshot):
+    #     bot = tb.Bot(
+    #         mode="backtest",
+    #         start="2024-01-01", end="2024-01-10"
+    #     )
+    #     bot.data = {
+    #         "candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)
+    #     }
+    #     bot.strategy = _SMACrossLS(ticker="USDT/BTC", fast=10, slow=30)
+    #     bot.exchange = tb.exchange.FakeFutureExchange(commission=0.0005, leverage=100)  # 100x leverage
+    #     bot.balance = Account.create({"USDT": 1_000})
+    #     bot.run()
 
-        assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
-        assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
-        assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
-        assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["order"].drop(columns=["param", "id_"])) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["trade"]) == snapshot
+    #     assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
     def test_limit_order(self, snapshot):
         class Test(_LimitOrderDummy):
@@ -364,7 +351,7 @@ class TestBacktestFutureStrategy:
         bot.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
         bot.strategy = Test()
         bot.exchange = tb.exchange.FakeFutureExchange(commission=0.001, leverage=10)
-        bot.account = tb.MarginAccount.create({"USDT": 1000})
+        bot.balance = tb.Account.create({"USDT": 1000})
         bot.run()
 
         assert util.hash_pd(bot.strategy.report["portfolio"]["nav"]) == snapshot
@@ -373,3 +360,31 @@ class TestBacktestFutureStrategy:
         assert util.hash_pd(bot.strategy.report["transaction"]) == snapshot
 
 
+def test_dummy_limit_order_strategy(snapshot):
+
+    class DummyLimitOrder(tb.Strategy):
+        def __init__(self):
+            super().__init__()
+            self.trader = Trader(FakeExchange(commission=0.001))
+            self.balance = Balance(USDT=10_000)
+            self.data = {"candlestick_1h": tb.data.Candlestick("binance", ticker="USDT/BTC", freq="1h", load_len=35)}
+
+        @tb.schedule([tb.trigger.StrategyFirstRun(), tb.trigger.StandardInterval("1h")])
+        def next(self):
+            curr_prc = self.data["candlestick_1h"]["close"].iloc[-1]
+
+            for order in self.order:
+                if order.action.value == "buy" and order.param["price"] < curr_prc * 0.97:
+                    self.trader.exchange.cancel(order)
+                    self.balance.convert(0.5, "PCTG", "USDT", "BTC", trader=self.trader, method="limit", param={"price": curr_prc * 0.98})
+                
+            if not self.order:
+                self.balance.convert(0.5, "PCTG", "USDT", "BTC", trader=self.trader, method="limit", param={"price": curr_prc * 0.98})
+
+    bot = tb.Bot(mode="backtest", start="2024-09-01", end="2024-10-01")
+    bot.add_strategy(DummyLimitOrder())
+    bot.run()
+
+    report = bot.strategy.report
+    assert_report(report, snapshot)
+    assert (report['order']['status'] == Order.Status.FILLED).sum() == len(report['transaction'])

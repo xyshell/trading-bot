@@ -1,11 +1,12 @@
 # Project specific
-config.toml
+tradingbot/config.toml
 _version.py
 temp*
 scratch*
 *.log.*
 example/*
 !example/demo*
+*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,7 +1,6 @@
 from enum import Enum
-import typing
-import logging
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 import pandas as pd
 
@@ -11,75 +10,70 @@ import tradingbot.util as util
 class Order(BaseModel):
     class Action(Enum):
         # spot
-        BUY = "BUY"
-        SELL = "SELL"
+        BUY = "buy"
+        SELL = "sell"
         # future
-        OPEN_LONG = "OPEN_LONG"
-        OPEN_SHORT = "OPEN_SHORT"
-        CLOSE_LONG = "CLOSE_LONG"
-        CLOSE_SHORT = "CLOSE_SHORT"
+        OPEN_LONG = "open_long"
+        OPEN_SHORT = "open_short"
+        CLOSE_LONG = "close_long"
+        CLOSE_SHORT = "close_short"
 
     class Type(Enum):
-        # basic
-        MARKET = "MARKET"
-        LIMIT = "LIMIT"  # {"price": 12345.6}
-        # algo
-        TRAILING_LIMIT = "TRAILING_LIMIT" # {"interval": "1m", offset": 0.9995}
-
-    class SizeType(Enum):
-        BASE = "BASE"  # units in base currency. e.g. BTC
-        QUOTE = "QUOTE"  # units in quote (i.e. price) currency. e.g. USDT
-        PCTG = "PCTG"  # percentage of available capital
+        MARKET = "market"
+        LIMIT = "limit"
 
     class Status(Enum):
-        NEW = "NEW"
-        PENDING = "PENDING"
-        PARTIAL_FILLED = "PARTIAL_FILLED"
-        FILLED = "FILLED"
-        CANCELED = "CANCELED"
-        EXPIRED = "EXPIRED"
-        REJECTED = "REJECTED"
+        NEW = "new"  # order created but not submitted to exchange yet
+        PENDING = "pending"  # order submitted but not filled
+        PARTIAL_FILLED = "partial_filled"  # order partially filled
+        FILLED = "filled"  # order fully filled
+        CANCELED = "canceled"  # order canceled
+        REJECTED = "rejected"  # order rejected by exchange
 
+    # input fields
     action: Action
     ticker: str
-    size_type: SizeType
-    size: float
+    amount: float
     type: Type
     param: dict = Field(default_factory=dict)
     status: Status = Status.NEW
-    id_: str | None = Field(default=None)
 
-    model_config = ConfigDict(validate_assignment=True)
+    # managed fields
+    id_: str | None = Field(default=None)
+    created_at: pd.Timestamp  # | None = Field(default=None)
+    updated_at: pd.Timestamp  # | None = Field(default=None)
+    filled_at: pd.Timestamp | None = Field(default=None)
+    filled_amount: float = np.nan
+    remain_amount: float = np.nan
+    exec_prc: float = np.nan
+    msg: str = ""
+
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     def __str__(self):
-        return f"Order(id={self.id_}, {self.action.name}, {self.ticker}, {self.size_type.name}, {self.size:.4f}, {self.type.name}, {self.param}, {self.status.name})"
+        return f"Order({self.action.name}, {self.ticker}, {self.amount:.4f}, {self.type.name}, {self.param}, {self.status.name})"
+
+    def __repr__(self):
+        return f"Order({self.model_dump()})"
 
     def model_post_init(self, __context):
-        logging.getLogger(self.__class__.__qualname__).debug(f"Order(ID={self.id_}) Created: {self}")
         if self.type is Order.Type.LIMIT:
-            assert self.param["price"] is not None
-        if self.type is Order.Type.TRAILING_LIMIT:
-            assert self.param["interval"] is not None
-            self.param["offset"] = float(self.param["offset"])
+            assert self.param.get("price") is not None, "LIMIT order requires price parameter"
 
     @property
-    def from_ticker(self) -> str:
+    def frm_asset(self) -> str:
+        """which asset to consume"""
         if self.action is Order.Action.BUY or self.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
-            return util.get_quote_ticker(self.ticker)
+            return util.get_quote_asset(self.ticker)
         elif self.action is Order.Action.SELL or self.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
-            return util.get_base_ticker(self.ticker)
+            return util.get_base_asset(self.ticker)
         raise NotImplementedError
 
     @property
-    def to_ticker(self) -> str:
+    def to_asset(self) -> str:
+        """which asset to produce"""
         if self.action is Order.Action.BUY or self.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
-            return util.get_base_ticker(self.ticker)
+            return util.get_base_asset(self.ticker)
         elif self.action is Order.Action.SELL or self.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
-            return util.get_quote_ticker(self.ticker)
+            return util.get_quote_asset(self.ticker)
         raise NotImplementedError
-
-    def cancel(self, exchange, now: pd.Timestamp = pd.NaT) -> typing.Self:
-        self.status = Order.Status.CANCELED
-        self = exchange.execute(now=now, order=self, check=False)
-        exchange.update_order(now=now, order=self)
-        return self

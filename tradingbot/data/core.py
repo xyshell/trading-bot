@@ -4,11 +4,12 @@ import logging
 import threading
 from typing import Self
 import typing
+from functools import cached_property
 
 import pandas as pd
 
 import tradingbot.util as util
-from tradingbot.model import ModeType
+from tradingbot.util import ModeType
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +43,16 @@ class Data:
         kls = cls.__base__ if cls.__base__ is not Data else cls
         return super().__new__(kls._registry[(kls, source)])
 
-    def __init__(self, mode: ModeType = "backtest", freq: str = "1s", load_len: int = 1000, preload: bool = False, **kwargs):
+    def __init__(self, mode: ModeType = "backtest", freq: str = "1s", load_len: int = 1000, **kwargs):
         """
         Args:
             mode (str): data fetching mode. "backtest" or "live"
             freq (str): update frequency, last update older than (now - freq) will be considered as stale and thus trigger update
             load_len (int): length of data to load
-            preload (bool): when backtest, whether to preload data to speed up
         """
         self._mode = mode
         self.freq = freq
         self.load_len = load_len
-        self._preload = preload
         self._cached = None
 
         self.value = collections.defaultdict(pd.Series)
@@ -81,15 +80,6 @@ class Data:
     def mode(self, mode: ModeType):
         self._mode = mode
 
-    @property
-    def preload(self) -> bool:
-        return self._preload
-    
-    @preload.setter
-    @util.validate
-    def preload(self, preload: bool):
-        self._preload = preload
-
     @abc.abstractmethod
     def get(self, now: pd.Timestamp, **kwargs) -> pd.DataFrame:
         pass
@@ -107,14 +97,12 @@ class Data:
         return self.value[item]
 
     def update(self, now: pd.Timestamp, **kwargs) -> None:
-        if self.mode == "backtest" and self._preload:
+        if self.mode == "backtest":
             df = self._cached.loc[self._cached[self.pit] <= now].tail(self.load_len).reset_index(drop=True)
-        elif self.mode == "backtest":
-            df = self.load(now, **kwargs)
-        else:  # live
+        else:  # live or paper
             df = pd.DataFrame()
 
-        if self.mode == "live" or len(df) < self.load_len or df[self.pit].iloc[-1] < (now - pd.Timedelta(self.freq)):
+        if self.mode in {"live", "paper"} or len(df) < self.load_len or df[self.pit].iloc[-1] < (now - pd.Timedelta(self.freq)):
             logger.debug(f"Data Fetching {self.__class__.__name__} for {now=}")
             df = self.get(now, **kwargs)
             thread = threading.Thread(target=self.set, args=(now, df), kwargs=kwargs, daemon=True)
@@ -131,12 +119,12 @@ class DataManager(dict):
         for data in self.values():
             data.mode = mode
 
-        from tradingbot.data.candlestick import Candlestick
+        from tradingbot.data import Candlestick
 
         self._candlestick_data = [data for data in self.values() if isinstance(data, Candlestick)]
         assert self._candlestick_data, "Data must contain at least one tb.data.Candlestick()"
 
-    @property
+    @cached_property
     def ticker2candle(self) -> dict[str, Data]:
         ticker2min_freq = collections.defaultdict(lambda: pd.Timedelta.max)
         ticker2candle = {}  # reference ticker to the candlestick with highest frequency
@@ -145,3 +133,7 @@ class DataManager(dict):
                 ticker2min_freq[data.ticker] = pd.Timedelta(data.freq)
                 ticker2candle[data.ticker] = data
         return ticker2candle
+
+    @property
+    def ticker2close(self) -> dict[str, float]:
+        return {k: v["close"].iloc[-1] for k, v in self.ticker2candle.items()}

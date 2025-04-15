@@ -1,5 +1,9 @@
-from .core import Exchange
-from .fake import FakeSpotExchange, FakeFutureExchange
+from .core import Exchange, FakeExchange, RealExchange
 from .ccxt import CCXTExchange
 
-__all__ = ["Exchange", "FakeSpotExchange", "FakeFutureExchange", "CCXTExchange"]
+
+# fmt: off
+__all__ = [
+    "Exchange", "FakeExchange", "RealExchange", 
+    "CCXTExchange"
+]

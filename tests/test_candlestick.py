@@ -1,8 +1,22 @@
 import pytest
 import pandas as pd
 
-from tradingbot.data.candlestick import Candlestick
+from tradingbot.data import Candlestick
 import tradingbot.util as util
+
+
+class TestCandlestick:
+
+    def test_display(self):
+        df = Candlestick.display("binance")
+        assert len(df) > 0
+        assert "ticker" in df.columns
+        assert "freq" in df.columns
+        assert "close_time_min" in df.columns
+        assert "close_time_max" in df.columns
+        assert "close_time_count" in df.columns
+        assert "close_avg" in df.columns
+        assert "base_volume_avg" in df.columns
 
 
 class TestYahooCandlestick:

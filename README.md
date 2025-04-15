@@ -93,6 +93,12 @@ dask worker tcp://192.168.1.71:8786 --nworkers 16
 
 3. check dashboard at http://192.168.1.71:8787
 
+## Settings and Configurations
+
+`TB_CONFIG_*` environment variable can be provided to override the default configuration.
+
+- `TB_CONFIG_FILE`: override the path to look at the config file.
+
 ## Troubleshoot:
 
 1. sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file

@@ -80,3 +80,36 @@
 # name: TestBacktestSpotStrategy.test_preload.1
   'd8fd97da4b8d357c8f05dcf4602ecb627573afd2310191bb52913e46fdbc6a24'
 # ---
+# name: test_dummy_limit_order_strategy
+  721
+# ---
+# name: test_dummy_limit_order_strategy.1
+  0.1141
+# ---
+# name: test_dummy_limit_order_strategy.10
+  nan
+# ---
+# name: test_dummy_limit_order_strategy.2
+  10999.9986
+# ---
+# name: test_dummy_limit_order_strategy.3
+  Timestamp('2024-09-12 17:36:40')
+# ---
+# name: test_dummy_limit_order_strategy.4
+  Timedelta('29 days 18:00:00')
+# ---
+# name: test_dummy_limit_order_strategy.5
+  0.0058200000000000005
+# ---
+# name: test_dummy_limit_order_strategy.6
+  '7244d48e3f8ceb0156da651edeb7e8a81a0a824b95795936a86397a2525cb83e'
+# ---
+# name: test_dummy_limit_order_strategy.7
+  Timestamp('2024-09-12 17:36:40')
+# ---
+# name: test_dummy_limit_order_strategy.8
+  1
+# ---
+# name: test_dummy_limit_order_strategy.9
+  3.7129
+# ---
