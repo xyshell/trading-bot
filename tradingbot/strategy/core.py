@@ -80,10 +80,9 @@ class Strategy(abc.ABC):
 
         data = self.data
         port_report = self.report["portfolio"].set_index("timestamp")
+        asset_report = self.report["asset"].set_index("timestamp")
         nav_col = f"NAV_{self.currency}"
-        store_report = {key: pd.Series({k: v for k, v in value.items() if k == "_evaluated_balance"}) for key, value in self.store_history.items()}
-        store_report = pd.concat(store_report, axis=1).T["_evaluated_balance"].apply(pd.Series)
-        asset_report = port_report.join(store_report).fillna(0.0)
+        asset_report = port_report.join(asset_report).fillna(0.0)
         transaction_report = self.report["transaction"]
         sample_freq = util.inferred_freq2freq(port_report.index.inferred_freq)
         candlestick_highest = min(data.values(), key=lambda da: pd.Timedelta(da.freq))
@@ -93,10 +92,26 @@ class Strategy(abc.ABC):
             candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(asset_report, candlestick_df, right_on="close_time", left_index=True)
-        buy_sell = transaction_report[["timestamp", "frm_asset", "to_asset", "prc"]].copy()
-        buy_sell["BUY"] = np.where(buy_sell["frm_asset"] == self.currency, buy_sell["prc"], np.nan)
-        buy_sell["SELL"] = np.where(buy_sell["to_asset"] == self.currency, buy_sell["prc"], np.nan)
-        df = pd.concat([df, buy_sell.set_index("timestamp")[["BUY", "SELL"]]], axis=1)
+        buy_sell = transaction_report[["timestamp", "frm_asset", "frm_qty", "to_asset", "to_qty", "prc"]].copy()
+        buy_sell["frm_qty_pos"] = buy_sell["frm_qty"] > 0
+        buy_sell["frm_qty_neg"] = buy_sell["frm_qty"] < 0
+        buy_sell["to_qty_pos"] = buy_sell["to_qty"] > 0
+        buy_sell["to_qty_neg"] = buy_sell["to_qty"] < 0
+        buy_sell["frm_asset_eq_currency"] = buy_sell["frm_asset"] == self.currency
+        buy_sell["to_asset_eq_currency"] = buy_sell["to_asset"] == self.currency
+
+        buy_sell["BUY"] = np.where(
+            buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_pos"] | buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_neg"],
+            buy_sell["prc"], 
+            np.nan
+        )
+        buy_sell["SELL"] = np.where(
+            buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_pos"] | buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_neg"],
+            buy_sell["prc"], 
+            np.nan
+        )
+
+        df = pd.concat([df, buy_sell.set_index("timestamp")[["BUY", "SELL"]].drop_duplicates()], axis=1)
         if "volume" not in df.columns and "base_volume" in df.columns:
             df.rename(columns={"base_volume": "volume"}, inplace=True)
         df.drop_duplicates(subset=["ticker", "close_time"], keep="last", inplace=True)
@@ -138,9 +153,9 @@ class Strategy(abc.ABC):
             warnings.filterwarnings(
                 action="ignore", category=UserWarning, message="No artists with labels found to put in legend"
             )
-            for ax in axlist:
+            for i, ax in enumerate(axlist):
                 _ = ax.tick_params(axis="x", labelsize=5)
                 _ = ax.tick_params(axis="y", labelsize=5)
-                _ = ax.legend(loc="upper left", fontsize=6)
+                _ = ax.legend(loc="upper left" if i % 2 != 0 else "lower right", fontsize=6, ncol=2)
         return fig
         # fmt: on

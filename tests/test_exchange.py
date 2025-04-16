@@ -781,93 +781,93 @@ fetch_positions_resp = [
         "info": {
             "adl": "1",
             "availPos": "0.11",
-            "avgPx": "86185.8",
+            "avgPx": "84464",
             "baseBal": "",
             "baseBorrowed": "",
             "baseInterest": "",
-            "bePx": "86099.65727136433",
+            "bePx": "84548.50625312656",
             "bizRefId": "",
             "bizRefType": "",
-            "cTime": "1743138177334",
+            "cTime": "1744604068845",
             "ccy": "USDT",
             "clSpotInUseAmt": "",
             "closeOrderAlgo": [],
             "deltaBS": "",
             "deltaPA": "",
-            "fee": "-0.04740219",
+            "fee": "-0.0464552",
             "fundingFee": "0",
             "gammaBS": "",
             "gammaPA": "",
-            "idxPx": "86225.7000000000000000",
+            "idxPx": "84549.9000000000000000",
             "imr": "",
             "instId": "BTC-USDT-SWAP",
             "instType": "SWAP",
             "interest": "",
-            "last": "86227.9",
-            "lever": "1",
+            "last": "84567.6",
+            "lever": "5",
             "liab": "",
             "liabCcy": "",
             "liqPenalty": "0",
-            "liqPx": "171599.30268790442",
-            "margin": "94.80438",
-            "markPx": "86222.2",
+            "liqPx": "67869.14707547601",
+            "margin": "18.5904",
+            "markPx": "84563.7",
             "maxSpotInUseAmt": "",
             "mgnMode": "isolated",
-            "mgnRatio": "222.03459330788485",
-            "mmr": "0.37937768",
+            "mgnRatio": "44.67391941449958",
+            "mmr": "0.37208028",
             "nonSettleAvgPx": "",
-            "notionalUsd": "94.82260578340001",
+            "notionalUsd": "92.98751297550001",
             "optVal": "",
             "pendingCloseOrdLiabVal": "",
             "pnl": "0",
             "pos": "0.11",
             "posCcy": "",
-            "posId": "2370143387347345408",
-            "posSide": "short",
+            "posId": "2370137010663088128",
+            "posSide": "long",
             "quoteBal": "",
             "quoteBorrowed": "",
             "quoteInterest": "",
-            "realizedPnl": "-0.04740219",
+            "realizedPnl": "-0.0464552",
             "settledPnl": "",
             "spotInUseAmt": "",
             "spotInUseCcy": "",
             "thetaBS": "",
             "thetaPA": "",
-            "tradeId": "1412654781",
-            "uTime": "1743138177334",
-            "upl": "-0.0400399999999936",
-            "uplLastPx": "-0.0463099999999904",
-            "uplRatio": "-0.0004223433558659",
-            "uplRatioLastPx": "-0.0004884795407132",
-            "usdPx": "0.99977",
+            "tradeId": "1463655884",
+            "uTime": "1744604366547",
+            "upl": "0.1096699999999968",
+            "uplLastPx": "0.1139600000000064",
+            "uplRatio": "0.0059019227126345",
+            "uplRatioLastPx": "0.0061327903011943",
+            "usdPx": "0.99965",
             "vegaBS": "",
             "vegaPA": "",
         },
-        "id": "2370143387347345408",
+        "id": "2370137010663088128",
         "symbol": "BTC/USDT:USDT",
-        "notional": 94.82260578340001,
+        "notional": 92.98751297550001,
         "marginMode": "isolated",
-        "liquidationPrice": 171599.30268790442,
-        "entryPrice": 86185.8,
-        "unrealizedPnl": -0.0400399999999936,
-        "realizedPnl": -0.04740219,
-        "percentage": -0.04223433558659,
+        "liquidationPrice": 67869.14707547601,
+        "entryPrice": 84464.0,
+        "unrealizedPnl": 0.1096699999999968,
+        "realizedPnl": -0.0464552,
+        "percentage": 0.59019227126345,
         "contracts": 0.11,
         "contractSize": 0.01,
-        "markPrice": 86222.2,
+        "markPrice": 84563.7,
         "lastPrice": None,
-        "side": "short",
+        "side": "long",
         "hedged": True,
-        "timestamp": 1743138177334,
-        "datetime": "2025-03-28T05:02:57.334Z",
-        "lastUpdateTimestamp": 1743138177334,
-        "maintenanceMargin": 0.37937768,
+        "timestamp": 1744604068845,
+        "datetime": "2025-04-14T04:14:28.845Z",
+        "lastUpdateTimestamp": 1744604366547,
+        "maintenanceMargin": 0.37208028,
         "maintenanceMarginPercentage": 0.004,
-        "collateral": 94.80438,
-        "initialMargin": 94.82260578340001,
-        "initialMarginPercentage": 1.0,
-        "leverage": 1.0,
-        "marginRatio": 0.004,
+        "collateral": 18.5904,
+        "initialMargin": 18.597502595100003,
+        "initialMarginPercentage": 0.2,
+        "leverage": 5.0,
+        "marginRatio": 0.02,
         "stopLossPrice": None,
         "takeProfitPrice": None,
     },
@@ -1105,10 +1105,10 @@ class TestCCXTExchange:
         exchange.strategy.balance = Balance(USDT=1000)
         exchange.strategy.order = []
         new_order = Order(
-            action="buy", 
-            ticker="USDT/BTC", 
-            amount=0.5, 
-            type="limit", 
+            action="buy",
+            ticker="USDT/BTC",
+            amount=0.5,
+            type="limit",
             param={"price": 62398.1},
             created_at=pd.Timestamp("2024-01-01 00:00:00"),
             updated_at=pd.Timestamp("2024-01-01 00:00:00"),
@@ -1116,9 +1116,7 @@ class TestCCXTExchange:
         assert new_order.status is Order.Status.NEW
         exchange.execute("limit", new_order)
         exchange.update(new_order)
-        mock_client.create_order.assert_called_once_with(
-            symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1
-        )
+        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1)
         assert new_order.id_ is not None
         assert new_order.status is Order.Status.FILLED
         assert new_order not in exchange.strategy.order
@@ -1134,19 +1132,17 @@ class TestCCXTExchange:
         exchange.strategy.balance = Balance(USDT=1000)
         exchange.strategy.order = []
         new_order = Order(
-            action="buy", 
-            ticker="USDT/BTC", 
-            amount=0.5, 
-            type="limit", 
+            action="buy",
+            ticker="USDT/BTC",
+            amount=0.5,
+            type="limit",
             param={"price": 62398.1},
             created_at=pd.Timestamp("2024-01-01 00:00:00"),
             updated_at=pd.Timestamp("2024-01-01 00:00:00"),
         )
         assert new_order.status is Order.Status.NEW
         exchange.execute("limit", new_order)
-        mock_client.create_order.assert_called_once_with(
-            symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1
-        )
+        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1)
         assert new_order.status is Order.Status.PENDING
         assert new_order.id_ is not None
         exchange.update(new_order)
@@ -1282,19 +1278,28 @@ class TestCCXTExchange:
     #     assert order
 
     # def test_create_order_limit(self):
+        # exchange = CCXTExchange()
+
+        # # spot
+        # order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
+        # assert order
+
+        # perpetual future
+        # symbol = "BTC/USDT:USDT"
+        # exchange.client.set_leverage(10, symbol, params={"mgnMode": "isolated", "posSide": "long"})
+        # ccxt.base.errors.ExchangeError: okx {"code":"59101","data":[],"msg":"Leverage can't be modified. Please cancel all pending isolated margin orders before adjusting the leverage."}
+        # order = exchange.client.create_order(symbol=symbol, type="limit", side="buy", amount=0.01, price=30_100,
+        #  params={"posSide": "long", "marginMode": "isolated", "hedged": False})
+        # assert order
+
+    # def test_fetch_positions(self):
     #     exchange = CCXTExchange()
 
-    #     # # spot
-    #     # order = exchange.client.create_order(symbol="BTC/USDT", type="limit", side="buy", amount=0.001, price=30_100)
-    #     # assert order
-
-    #     # perpetual future
     #     symbol = "BTC/USDT:USDT"
-    #     exchange.client.set_leverage(10, symbol, params={"mgnMode": "isolated", "posSide": "long"})
-    #     # ccxt.base.errors.ExchangeError: okx {"code":"59101","data":[],"msg":"Leverage can't be modified. Please cancel all pending isolated margin orders before adjusting the leverage."}
-    #     order = exchange.client.create_order(symbol=symbol, type="limit", side="buy", amount=0.01, price=30_100,
-    #                                          params={"posSide": "long", "marginMode": "isolated", "hedged": False})
-    #     assert order
+    #     positions = exchange.client.fetch_positions([symbol])
+
+    #     symbol = "ETH/USDT:USDT"  
+    #     positions = exchange.client.fetch_positions([symbol])  # returns [] if not traded yet
 
     # def test_fetch_order(self):
     #     exchange = CCXTExchange()

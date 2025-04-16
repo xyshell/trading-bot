@@ -3,8 +3,11 @@ from collections import defaultdict
 import copy
 import logging
 
+import numpy as np
 
+from tradingbot.position import Position
 import tradingbot.util as util
+from tradingbot.util import PosFloat
 from tradingbot.transaction import Transaction
 from tradingbot.order import Order
 
@@ -39,7 +42,7 @@ class Exchange(abc.ABC):
 
     @abc.abstractmethod
     def fetch_tickers(self, tickers: list[str]) -> dict:
-        """fetch latest info for tickers
+        """Fetch latest info for tickers
         
         Args:
             tickers (list[str]): e.g. ["USDT/BTC", "USDT/ETH"]
@@ -76,18 +79,44 @@ class Exchange(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
+    def fetch_positions(self) -> dict[str, dict[str, Position]]:
+        """Fetch open positions in the exchange
+
+        Returns:
+            dict[str, Position]: {
+                "USDT/BTC:USDT": {
+                    "long": Position(...),
+                    "short": Position(...),
+                }
+                ...
+            }
+        """
+        pass
+
+    @abc.abstractmethod
+    def set_leverage(self, ticker: str, side: str, leverage: PosFloat) -> None:
+        """Set leverage for margin trading
+
+        Args:
+            ticker (str): e.g. "USDT/BTC:USDT"
+            side (str): "long" or "short"
+            leverage (NonNegFloat): leverage
+        """
+        pass
+
     def get_frm_to(self, order: Order) -> tuple[str, str]:
         markets = self.load_markets()
         market_type = markets[order.ticker]['type']
 
-        if order.action == Order.Action.BUY:
+        if order.action in {Order.Action.BUY, Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
             if market_type == "spot":
                 frm = util.get_quote_asset(order.ticker)
                 to = util.get_base_asset(order.ticker)
             else:
                 frm = util.get_margin_asset(order.ticker)
                 to = order.ticker
-        else:  # sell
+        else:  # SELL, CLOSE_LONG, CLOSE_SHORT
             if market_type == "spot":
                 frm = util.get_base_asset(order.ticker)
                 to = util.get_quote_asset(order.ticker)
@@ -115,7 +144,9 @@ class FakeExchange(Exchange):
     def __repr__(self):
         return f"{self.__class__.__name__}(commission={self._commission})"
 
-    def _reconcile(self, order: Order, exec_prc: float) -> Order:
+    def _reconcile_asset(self, order: Order, exec_prc: float) -> Order:
+        if order.action not in {Order.Action.BUY, Order.Action.SELL}:
+            raise ValueError(f"order action must be 'BUY' or 'SELL', got {order.action}")
         frm, to = self.get_frm_to(order)
         frm_qty = exec_prc * order.amount if order.action is Order.Action.BUY else order.amount
         to_qty = exec_prc * order.amount if order.action is Order.Action.SELL else order.amount
@@ -146,6 +177,94 @@ class FakeExchange(Exchange):
 
         return order
 
+    def _reconcile_position(self, order: Order, exec_prc: float) -> Order:
+        if order.action not in {Order.Action.OPEN_LONG, Order.Action.CLOSE_LONG, Order.Action.OPEN_SHORT, Order.Action.CLOSE_SHORT}:
+            raise ValueError(f"order action must be 'OPEN_LONG', 'CLOSE_LONG', 'OPEN_SHORT' or 'CLOSE_SHORT', got {order.action}")
+        derivative_markets = {k: v for k, v in self.load_markets().items() if v["type"] in {"future", "swap", "option"}}
+        
+        frm, to = self.get_frm_to(order)
+        new_balance = copy.deepcopy(self.strategy.balance)
+        if frm in derivative_markets:  # close position
+            existing_pos = self.fetch_positions([frm])[frm][order.side]
+            margin = order.amount * exec_prc * derivative_markets[frm]["contractSize"] / existing_pos.leverage
+            tcost = margin * self._commission
+            to_qty = existing_pos.margin + existing_pos.pnl + existing_pos.fee - tcost  # add fee back to avoid double counting
+
+            minus_pos = Position(
+                ticker=order.ticker,
+                side=order.side,
+                amount=-order.amount,
+                leverage=existing_pos.leverage,
+                entry_prc=exec_prc,
+                mark_prc=exec_prc,
+                fee=tcost,
+                created_at=self.strategy.now,
+                updated_at=self.strategy.now,
+                contract_size=derivative_markets[frm]["contractSize"],
+            )
+            try:
+                new_balance.close_position(minus_pos)
+                new_balance[to] += to_qty
+            except ValueError:
+                order.status = Order.Status.REJECTED
+                order.msg = "insufficient balance to close position"
+            else:
+                order.status = Order.Status.FILLED
+                order.filled_at = self.strategy.now
+                order.filled_amount = order.amount
+                order.remain_amount = 0.0
+                order.exec_prc = exec_prc
+                frm_qty = order.amount if order.side == "long" else -order.amount
+                trans = Transaction(frm, frm_qty, to, to_qty, to, tcost, order.ticker, exec_prc, timestamp=self.strategy.now)
+                self.strategy.transaction_history.append(trans)
+                self.strategy.balance.data = new_balance.data
+            finally:
+                order.updated_at = self.strategy.now
+                self.strategy.order_history.append(order)
+                if order in self.strategy.order:
+                    self.strategy.order.remove(order)
+        elif to in derivative_markets:  # open position
+            existing_pos = self.fetch_positions([to])[to][order.side]
+            order.amount *= (1 - self._commission)
+            margin = order.amount * exec_prc * derivative_markets[to]["contractSize"] / existing_pos.leverage
+            tcost = margin * self._commission
+            frm_qty = margin + tcost
+            
+            plus_pos = Position(
+                ticker=order.ticker,
+                side=order.side,
+                amount=order.amount,
+                leverage=existing_pos.leverage,
+                entry_prc=exec_prc,
+                mark_prc=exec_prc,
+                margin=margin,
+                fee=tcost,
+                created_at=self.strategy.now,
+                updated_at=self.strategy.now,
+                contract_size=derivative_markets[to]["contractSize"],
+            )
+            try:
+                new_balance.add_position(plus_pos)
+                new_balance[frm] -= frm_qty
+            except ValueError:
+                order.status = Order.Status.REJECTED
+                order.msg = "insufficient balance to open position"
+            else:
+                order.status = Order.Status.FILLED
+                order.filled_at = self.strategy.now
+                order.filled_amount = order.amount
+                order.remain_amount = 0.0
+                order.exec_prc = exec_prc
+                to_qty = order.amount if order.side == "long" else -order.amount
+                trans = Transaction(frm, frm_qty, to, to_qty, frm, tcost, order.ticker, exec_prc, timestamp=self.strategy.now)
+                self.strategy.transaction_history.append(trans)
+                self.strategy.balance.data = new_balance.data
+            finally:
+                order.updated_at = self.strategy.now
+                self.strategy.order_history.append(order)
+                if order in self.strategy.order:
+                    self.strategy.order.remove(order)            
+
     @util.dispatch
     def execute(self, order_type: str, *args, **kwargs) -> Order:
         raise NotImplementedError(order_type)
@@ -155,7 +274,10 @@ class FakeExchange(Exchange):
         ticker2close = self.strategy.data.ticker2close
         exec_prc = ticker2close[order.ticker]
 
-        order = self._reconcile(order, exec_prc)
+        if order.action in {Order.Action.BUY, Order.Action.SELL}:
+            order = self._reconcile_asset(order, exec_prc)
+        else:  # OPEN_LONG, OPEN_SHORT, CLOSE_LONG, CLOSE_SHORT
+            order = self._reconcile_position(order, exec_prc)
         return order
 
     @execute.register((__qualname__, "limit"))
@@ -186,7 +308,7 @@ class FakeExchange(Exchange):
             case _:
                 return order
 
-        order = self._reconcile(order, exec_prc)
+        order = self._reconcile_asset(order, exec_prc)
         return order
 
     def update(self, order: Order) -> Order:
@@ -241,10 +363,31 @@ class FakeExchange(Exchange):
         Returns:
             dict: 
             {
-                "USDT/BTC": {
+                "USDT/BTC": {  # spot market
                     "quote": "USDT",
                     "base": "BTC",
                     "type": "spot",
+                    ...
+                },
+                "USDT/BTC:USDT": {  # swap market
+                    "quote": "USDT",
+                    "base": "BTC",
+                    "type": "swap",
+                    "contractSize": 1.0,
+                    ...
+                },
+                "USDT/BTC:USDT-250627": {  # future market
+                    "quote": "USDT",
+                    "base": "BTC",
+                    "type": "future",
+                    "contractSize": 1.0,
+                    ...
+                },
+                "USD/BTC:BTC-250419-84500-C: {  # option market
+                    "quote": "USD",
+                    "base": "BTC",
+                    "type": "option",
+                    "contractSize": 1.0,
                     ...
                 }
                 ...
@@ -269,159 +412,91 @@ class FakeExchange(Exchange):
                         raise NotImplementedError(ticker)
                     else:
                         markets[ticker]["type"] = "swap"
+                        markets[ticker]["contractSize"] = 1.0
                 else:
                     markets[ticker]["type"] = "future"
+                    markets[ticker]["contractSize"] = 1.0
             else:
                 markets[ticker]["type"] = "option"
+                markets[ticker]["contractSize"] = 1.0
 
         if market_type:
             return {k: v for k, v in markets.items() if v["type"] == market_type}
         
         return markets
-            
+    
+    def fetch_positions(self, tickers: list[str]) -> dict[str, dict[str, Position]]:
+        """Fetch open positions in the exchange
+        
+        Returns:
+            dict[str, Position]: {
+                "USDT/BTC:USDT": {
+                    "long": Position(...),
+                    "short": Position(...),
+                }
+                ...
+            }
+        """
+        res = defaultdict(dict)
+        for ticker in tickers:
+            pos_pair = self.strategy.balance[ticker] or {}
+            if pos_long := pos_pair.get("long"):
+                res[ticker]["long"] = pos_long
+            else:
+                res[ticker]["long"] = Position(
+                    ticker=ticker,
+                    side="long",
+                    amount=0.0,
+                    leverage=np.nan,
+                    entry_prc=np.nan,
+                    mark_prc=np.nan,
+                    margin=0.0,
+                    fee=0.0,
+                    id_=None,
+                    created_at=self.strategy.now,
+                    updated_at=self.strategy.now,
+                    contract_size=1.0,
+                    liquidation_prc_=np.nan,
+                    notional_=np.nan
+                )
+            if pos_short := pos_pair.get("short"):
+                res[ticker]["short"] = pos_short
+            else:
+                res[ticker]["short"] = Position(
+                    ticker=ticker,
+                    side="short",
+                    amount=0.0,
+                    leverage=np.nan,
+                    entry_prc=np.nan,
+                    mark_prc=np.nan,
+                    margin=0.0,
+                    fee=0.0,
+                    created_at=self.strategy.now,
+                    updated_at=self.strategy.now,
+                    contract_size=1.0,
+                    liquidation_prc_=np.nan,
+                    notional_=np.nan
+                )
+        return res
 
-# class FakeFutureExchange(FakeExchange, FutureExchange):
-
-#     @util.validate
-#     def __init__(self, commission: float = 0.0, leverage: int = 1, **kwargs) -> None:
-#         self._commission = commission
-#         self._leverage = leverage
-
-#     @property
-#     def leverage(self) -> int:
-#         return self._leverage
-
-#     def _order2qty(self, order: Order, exec_prc: float) -> tuple[float, float]:
-#         frm_asset, to_asset = order.frm_asset, order.to_asset
-#         quote_ticker, base_ticker = util.get_quote_asset(order.ticker), util.get_base_asset(order.ticker)
-
-#         match order.size_type:
-#             case Order.SizeType.PCTG:
-#                 from_pos = self.strategy.account[frm_asset]
-#                 from_qty = from_pos.qty * order.size
-#                 if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
-#                     from_qty_scaled = (from_qty / self._leverage) if isinstance(from_pos, MarginPosition) else (from_qty * self._leverage)
-#                     _, to_qty = util.convert((frm_asset, from_qty_scaled * (1 - self._commission)), order.ticker, exec_prc)
-#                     to_qty *= -1 if order.action is Order.Action.OPEN_SHORT else 1
-#                 else:  # close position
-#                     to_qty = from_pos.margin[1] * order.size
-#             case Order.SizeType.BASE if to_asset == base_ticker:
-#                 raise NotImplementedError
-#             case Order.SizeType.QUOTE if to_asset == quote_ticker:
-#                 to_qty = order.size
-#                 _, from_qty = util.convert((to_asset, to_qty * self._leverage), order.ticker, exec_prc)
-#                 from_qty *= -1 if order.action is Order.Action.CLOSE_SHORT else 1
-#             case Order.SizeType.BASE if frm_asset == base_ticker:
-#                 raise NotImplementedError
-#             case Order.SizeType.QUOTE if frm_asset == quote_ticker:
-#                 raise NotImplementedError
-#             case _:
-#                 raise NotImplementedError
-
-#         return from_qty, to_qty
-
-#     def _reconcile(self, order: Order, exec_prc: float) -> Order:
-#         frm_asset, to_asset = order.frm_asset, order.to_asset
-#         quote_ticker = util.get_quote_asset(order.ticker)
-#         from_qty, to_qty = self._order2qty(order, exec_prc)
-
-#         fee_qty = from_qty if frm_asset == quote_ticker else to_qty
-#         tcost = (quote_ticker, fee_qty * self._commission)  # charge tcost in quote_ticker
-#         if to_asset == quote_ticker:
-#             to_qty -= tcost[1]
-
-#         if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
-#             trans = OpenTransaction(
-#                 ticker = order.ticker,
-#                 prc = exec_prc,
-#                 from_ = (frm_asset, from_qty),  # normal position
-#                 to_ = (to_asset, to_qty),  # margin position
-#                 tcost = tcost,
-#                 timestamp = now,
-#                 leverage = self._leverage
-#             )
-#         else:  # close position
-#             trans = CloseTransaction(
-#                 ticker = order.ticker,
-#                 prc = exec_prc,
-#                 from_ = (frm_asset, from_qty),  # margin position
-#                 to_ = (to_asset, to_qty),  # normal position
-#                 tcost = tcost,
-#                 timestamp = now,
-#                 leverage = self._leverage
-#             )
-#         if not trans:
-#             order.status = Order.Status.REJECTED
-#             logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to trivial transaction, transaction={trans}")
-#             return order
-
-#         from_pos, to_pos, _ = trans.split()
-#         account = copy.deepcopy(self.strategy.account)
-#         account += to_pos
-#         account -= from_pos
-
-#         if not account.is_sufficient():
-#             order.status = Order.Status.REJECTED
-#             logger.debug(f"Order(ID={id(order)}) Rejected: {order}, due to insufficient capital, account={self.strategy.account}")
-#             return order
-
-#         self.strategy.account = account
-#         self.strategy.transaction_history.append(trans)
-
-#         order.status = Order.Status.FILLED
-#         logger.debug(f"Order(ID={id(order)}) Filled: {order}, transaction={trans}")
-#         return order
-
-#     def _execute_market(self, order: Order) -> Order:
-#         assert order.type is Order.Type.MARKET, f"Invalid order type: {order.type}"
-#         assert order.action in {Order.Action.OPEN_LONG, Order.Action.CLOSE_LONG, Order.Action.OPEN_SHORT, Order.Action.CLOSE_SHORT}, f"Invalid order action: {order.action}"
-#         if order.status in (Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED):
-#             return order
-
-#         candle = self.strategy.data.ticker2candle[order.ticker]
-#         exec_prc = candle["close"].iloc[-1]
-
-#         order = self._reconcile(order, exec_prc)
-#         return order
-
-#     def _execute_limit(self, order: Order) -> Order:
-#         assert order.type is Order.Type.LIMIT, f"Invalid order type: {order.type}"
-#         assert order.action in {Order.Action.OPEN_LONG, Order.Action.CLOSE_LONG, Order.Action.OPEN_SHORT, Order.Action.CLOSE_SHORT}, f"Invalid order action: {order.action}"
-#         if order.status in (Order.Status.CANCELED, Order.Status.EXPIRED, Order.Status.REJECTED, Order.Status.FILLED):
-#             return order
-
-#         candle = self.strategy.data.ticker2candle[order.ticker]
-#         match order.status:
-#             case Order.Status.NEW:
-#                 if order.action in {Order.Action.OPEN_LONG, Order.Action.CLOSE_SHORT} and order.param["price"] >= candle["close"].iloc[-1]:
-#                     exec_prc = candle["close"].iloc[-1]
-#                 elif order.action in {Order.Action.OPEN_SHORT, Order.Action.CLOSE_LONG} and order.param["price"] <= candle["close"].iloc[-1]:
-#                     exec_prc = candle["close"].iloc[-1]
-#                 else:
-#                     order.status = Order.Status.PENDING
-#                     return order
-#             case Order.Status.PENDING:
-#                 high = candle["high"].iloc[-1]
-#                 low = candle["low"].iloc[-1]
-#                 if low <= order.param["price"] <= high:
-#                     exec_prc = order.param["price"]
-#                 else:
-#                     return order
-
-#         order = self._reconcile(order, exec_prc)
-#         return order
-
-#     def execute(self, order: Order, **kwargs) -> Order:
-#         """
-#         Args:
-#             now (pd.Timestamp):
-#             order (Order):
-
-#         Returns:
-#             Order
-#         """
-#         if order.type is Order.Type.LIMIT:
-#             return self._execute_limit(now, order)
-#         elif order.type is Order.Type.MARKET:
-#             return self._execute_market(now, order)
-#         raise NotImplementedError
+    def set_leverage(self, ticker: str, side: str, leverage: PosFloat) -> None:
+        if pos := self.strategy.balance[ticker].get(side): 
+            pos.leverage = leverage
+        else:
+            self.strategy.balance.add_position(
+                Position(
+                    ticker=ticker,
+                    side=side,
+                    amount=0.0,
+                    leverage=leverage,
+                    entry_prc=np.nan,
+                    mark_prc=np.nan,
+                    margin=0.0,
+                    fee=0.0,
+                    created_at=self.strategy.now,
+                    updated_at=self.strategy.now,
+                    contract_size=1.0,
+                    liquidation_prc_=np.nan,
+                    notional_=np.nan
+                )
+            )

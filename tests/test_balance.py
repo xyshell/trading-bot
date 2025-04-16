@@ -1,7 +1,14 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import pytest
 
 from tradingbot.exchange import CCXTExchange
 from tradingbot.balance import Balance
+from tradingbot.position import Position
+
+
+NOW = pd.Timestamp("2024-01-01 00:00:00")
 
 
 @patch("tradingbot.exchange.ccxt.CCXTExchange.client")
@@ -37,28 +44,123 @@ def test_evaluate(mock_client):
     }
 
     exchange = CCXTExchange()
+    exchange.strategy = MagicMock()
+    exchange.strategy.now = NOW
+
     balance = Balance().reflect(exchange)
     evaluated = balance.evaluate(exchange, "USDT")
     assert evaluated["BTC"] == 12345.6 * 0.19
 
-"""
-Balance({
-    "USDT": 10_000,
-    "BTC": 0.01,
-    ...
-    positions = [
-        "USDT/BTC:USDT": [
-            {
-                # attrs
-                "side": "long"
-                "size": 0.1
-                "init_margin": 94.82  # currency can be inferred from settlement
-                "margin": 94.80
-                "leverage": 10
-                # computed attrs
-                "liquidation_prc": 94.80 / 0.1
-            }
-        ]
-    ]
-})
-"""
+
+def make_position(amount: float, side: str = "long", entry: float = 20000, mark: float = 21000, margin: float = 1000, fee: float = 5) -> Position:
+    return Position(
+        ticker="BTC/USDT:USDT",
+        side=side,
+        amount=amount,
+        leverage=5,
+        entry_prc=entry,
+        mark_prc=mark,
+        margin=margin,
+        fee=fee,
+        created_at=NOW,
+        updated_at=NOW,
+        contract_size=1.0
+    )
+
+
+def test_add_spot_balance():
+    b = Balance()
+    b["USDT"] = 1000.0
+    assert b["USDT"] == 1000.0
+
+
+def test_add_position_new_side():
+    b = Balance()
+    pos = make_position(1.0)
+    b.add_position(pos)
+    assert b["BTC/USDT:USDT"]["long"].amount == 1.0
+
+
+def test_add_position_combine():
+    b = Balance()
+    b.add_position(make_position(1.0, entry=20000))
+    b.add_position(make_position(2.0, entry=22000))
+    combined = b["BTC/USDT:USDT"]["long"]
+    expected_entry = (1 * 20000 + 2 * 22000) / 3
+    assert combined.amount == 3.0
+    assert combined.entry_prc == pytest.approx(expected_entry)
+
+
+def test_add_and_close_out_position():
+    b = Balance()
+
+    # Step 1: Open a long position at 20,000 with 500 margin and 3 USDT fee
+    open_pos = make_position(1.0, entry=20000, margin=500, fee=3)
+    b.add_position(open_pos)
+
+    # Step 2: Close the long position at 20,000 with 2 USDT fee
+    close_pos = make_position(-1.0, entry=20000, margin=0, fee=2)
+    b.close_position(close_pos)
+
+    # Step 3: After full closure, the position should no longer exist
+    assert "BTC/USDT:USDT" not in b
+
+    # Step 4: Total fee = 3 (open) + 2 (close) = 5
+    # Margin returned = 500
+    # So actual spot balance = 500 - 5 = 495
+    assert b["USDT"] == pytest.approx(495.0)
+
+    # Optional: assert the position fees themselves
+    assert open_pos.fee == 3
+    assert close_pos.fee == 2
+
+    # Optional: realized PnL = (exit - entry) * amount - fees = (20000 - 20000) * 1.0 - 5 = -5
+    realized_pnl = (close_pos.entry_prc - open_pos.entry_prc) * open_pos.amount - (open_pos.fee + close_pos.fee)
+    assert realized_pnl == pytest.approx(-5.0)
+
+
+def test_add_position_hedged():
+    b = Balance()
+    b.add_position(make_position(1.0, side="long"))
+    b.add_position(make_position(-1.0, side="short"))
+
+    assert "BTC/USDT:USDT" in b
+    assert "long" in b["BTC/USDT:USDT"]
+    assert "short" in b["BTC/USDT:USDT"]
+    assert b["BTC/USDT:USDT"]["long"].amount == pytest.approx(1.0)
+    assert b["BTC/USDT:USDT"]["short"].amount == pytest.approx(-1.0)
+
+
+def test_close_position_partial():
+    b = Balance()
+    b.add_position(make_position(1.0))
+    closing = make_position(-0.5, entry=21000)
+    b.close_position(closing)
+    assert b["BTC/USDT:USDT"]["long"].amount == pytest.approx(0.5)
+
+
+def test_close_position_fully():
+    b = Balance(USDT=500.0)
+    b.add_position(make_position(1.0, margin=1000, fee=5))
+    b.close_position(make_position(-1.0, entry=21000, margin=1000, fee=5))
+    assert "BTC/USDT:USDT" not in b
+    assert b["USDT"] == pytest.approx(2490.0)
+
+
+def test_close_position_exceed_error():
+    b = Balance()
+    b.add_position(make_position(1.0))
+    with pytest.raises(ValueError):
+        b.close_position(make_position(-1.1))
+
+
+def test_close_position_missing_error():
+    b = Balance()
+    with pytest.raises(KeyError):
+        b.close_position(make_position(-1.0))
+
+
+def test_set_negative_spot_balance_raises():
+    b = Balance()
+    with pytest.raises(ValueError):
+        b["USDT"] = -10.0

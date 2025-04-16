@@ -1,6 +1,7 @@
 from dataclasses import asdict
 import math
 import logging
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,16 @@ class Reporter:
             return pd.DataFrame()
         asset_report = {}
         for timestamp, balance in strategy.balance_history.items():
-            asset_report[timestamp] = pd.Series(balance)
+            bal = balance.copy()
+            if positions := bal.positions:
+                exposure = defaultdict(float)
+                for ticker, pos_pair in positions.items():
+                    if long_pos := pos_pair.get("long"):
+                        exposure[ticker] += long_pos.notional
+                    if short_pos := pos_pair.get("short"):
+                        exposure[ticker] -= short_pos.notional
+                bal.data.update(exposure)
+            asset_report[timestamp] = pd.Series(bal)
         asset_report = pd.concat(asset_report).unstack()
         asset_report.index.rename("timestamp", inplace=True)
         return asset_report.reset_index()

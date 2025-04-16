@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 
 import ccxt
@@ -8,6 +9,7 @@ from retry import retry
 
 import tradingbot as tb
 import tradingbot.util as util
+from tradingbot.util import PosFloat
 from tradingbot.exchange.core import RealExchange
 from tradingbot.position import Position
 from tradingbot.transaction import Transaction
@@ -189,33 +191,6 @@ class CCXTExchange(RealExchange):
         balance = self.fetch_balance(now, **kwargs)[asset]
         return Position(asset=asset, qty=balance)
 
-    # def reflect_balance(self, now: pd.Timestamp, balance: Balance, ticker: str) -> Balance:
-    #     """
-    #     Args:
-    #         now (pd.Timestamp):
-    #         balance (Balance):
-    #         ticker (str): e.g. "USDT/BTC"
-    #     Returns:
-    #         Balance
-    #     """
-    #     balance = copy.deepcopy(balance)
-    #     quote_asset, base_asset = util.get_quote_asset(ticker), util.get_base_asset(ticker)
-    #     balance = self.client.fetch_balance({"ccy": base_asset})
-    #     base_info = balance.get(base_asset, {})
-
-    #     if base_total := base_info.get("total", 0):
-    #         prc = self.get_price(ticker, now)
-    #         base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_asset), {})
-    #         base_pos = Position(asset=base_asset, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
-    #         quote_pos = Position(asset=quote_asset, qty=max(balance[quote_asset].qty - base_total * prc, 0.0))
-    #         balance[base_asset] = base_pos
-    #         balance[quote_asset] = quote_pos
-
-    #     return balance
-
-    # def ping(self) -> bool:
-    #     return "ok" in self.client.fetch_status()
-
     # ------------------------------------- wrapper methods -------------------------------------
     def fetch_balance(self, balance_type: str = "total") -> dict:
         """Fetch current balance
@@ -304,3 +279,31 @@ class CCXTExchange(RealExchange):
             return {}
         status = self._fetch_tickers(tuple(symbols), self.strategy.now)
         return {self.symbol2ticker[k]: v for k, v in status.items()}
+
+    def fetch_positions(self, tickers: list[str]) -> dict[str, dict[str, Position]]:
+        symbols = [self.ticker2symbol[ticker] for ticker in tickers]
+        positions = self.client.fetch_positions(symbols)
+        
+        res = defaultdict(dict)
+        for info in positions:
+            ticker = self.symbol2ticker[info["symbol"]]
+            res[ticker][info["side"]] = Position(
+                ticker=ticker,
+                side=info["side"],
+                amount=info["contracts"],
+                leverage=info["leverage"] or np.nan,
+                entry_prc=info["entryPrice"] or np.nan,
+                mark_prc=info["markPrice"] or np.nan,
+                margin=info["collateral"] or 0.0,
+                fee=abs(float(info["info"]["fee"] or 0.0)),
+                id_=info["id"],
+                created_at=pd.Timestamp(info["timestamp"], unit="ms"),
+                updated_at=pd.Timestamp(info["lastUpdateTimestamp"], unit="ms"),
+                contract_size=info["contractSize"],
+                liquidation_prc_=info["liquidationPrice"] or np.nan,
+                notional_=info["notional"] or np.nan
+            )
+        return res
+
+    def set_leverage(self, ticker: str, side: str, leverage: PosFloat):
+        self.client.set_leverage(leverage, self.get_symbol(ticker), params={"mgnMode": "isolated", "posSide": side})

@@ -77,3 +77,12 @@ class Order(BaseModel):
         elif self.action is Order.Action.SELL or self.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
             return util.get_quote_asset(self.ticker)
         raise NotImplementedError
+
+    @property
+    def side(self) -> str:
+        """which side to trade"""
+        if self.action in {Order.Action.OPEN_LONG, Order.Action.CLOSE_LONG}:
+            return "long"
+        elif self.action in {Order.Action.OPEN_SHORT, Order.Action.CLOSE_SHORT}:
+            return "short"
+        raise ValueError(f"side not defined for action: {self.action}")
