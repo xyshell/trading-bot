@@ -71,7 +71,7 @@ class Reporter:
         ptf_report = ptf_report.set_index("timestamp")
         nav_col = f"NAV_{strategy.currency}"
         ptf_hist_ret = ptf_report[nav_col].pct_change()
-        is_exposed = ptf_hist_ret.fillna(0.0) != 0.0
+        is_exposed = ptf_hist_ret.fillna(0.0) > 1e-4
         is_exposed_chg = is_exposed.astype(int).diff()
         trade_start = is_exposed_chg.index[is_exposed_chg == 1]
         trade_end = is_exposed_chg.index[is_exposed_chg == -1]
@@ -100,7 +100,7 @@ class Reporter:
         N = pd.Timedelta("365 days") / pd.Timedelta(freq)
         # portfolio
         ptf_hist_ret = ptf_report[nav_col].pct_change()
-        is_exposed = ptf_hist_ret.fillna(0.0) != 0.0
+        is_exposed = ptf_hist_ret.fillna(0.0) > 1e-4
         exposure_time = is_exposed.sum() / len(is_exposed)
         ptf_ret = ptf_report[nav_col].iloc[-1] / ptf_report[nav_col].iloc[0] - 1
         ptf_ret_peak = ptf_report[nav_col].max() / ptf_report[nav_col].iloc[0] - 1
