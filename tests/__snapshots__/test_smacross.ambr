@@ -65,3 +65,36 @@
 # name: test_smacrossfuture_backtest.9
   -2.3714
 # ---
+# name: test_smacrossfuture_liquidation
+  721
+# ---
+# name: test_smacrossfuture_liquidation.1
+  -0.0
+# ---
+# name: test_smacrossfuture_liquidation.10
+  nan
+# ---
+# name: test_smacrossfuture_liquidation.2
+  0.0
+# ---
+# name: test_smacrossfuture_liquidation.3
+  Timestamp('2024-09-16 13:43:43.728813568')
+# ---
+# name: test_smacrossfuture_liquidation.4
+  Timedelta('6 days 23:00:00')
+# ---
+# name: test_smacrossfuture_liquidation.5
+  0.0053186440677966094
+# ---
+# name: test_smacrossfuture_liquidation.6
+  'f819b6de411f14bc0c9285c973b05beeed0c8677b9f7ce6d6326723400cecf60'
+# ---
+# name: test_smacrossfuture_liquidation.7
+  Timestamp('2024-09-16 13:43:43.728813568')
+# ---
+# name: test_smacrossfuture_liquidation.8
+  4
+# ---
+# name: test_smacrossfuture_liquidation.9
+  0.6735
+# ---

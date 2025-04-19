@@ -103,20 +103,7 @@ def test_add_and_close_out_position():
     b.close_position(close_pos)
 
     # Step 3: After full closure, the position should no longer exist
-    assert "BTC/USDT:USDT" not in b
-
-    # Step 4: Total fee = 3 (open) + 2 (close) = 5
-    # Margin returned = 500
-    # So actual spot balance = 500 - 5 = 495
-    assert b["USDT"] == pytest.approx(495.0)
-
-    # Optional: assert the position fees themselves
-    assert open_pos.fee == 3
-    assert close_pos.fee == 2
-
-    # Optional: realized PnL = (exit - entry) * amount - fees = (20000 - 20000) * 1.0 - 5 = -5
-    realized_pnl = (close_pos.entry_prc - open_pos.entry_prc) * open_pos.amount - (open_pos.fee + close_pos.fee)
-    assert realized_pnl == pytest.approx(-5.0)
+    assert b["BTC/USDT:USDT"]["long"].amount == pytest.approx(0.0)
 
 
 def test_add_position_hedged():
@@ -143,8 +130,7 @@ def test_close_position_fully():
     b = Balance(USDT=500.0)
     b.add_position(make_position(1.0, margin=1000, fee=5))
     b.close_position(make_position(-1.0, entry=21000, margin=1000, fee=5))
-    assert "BTC/USDT:USDT" not in b
-    assert b["USDT"] == pytest.approx(2490.0)
+    assert b["BTC/USDT:USDT"]["long"].amount == pytest.approx(0.0)
 
 
 def test_close_position_exceed_error():

@@ -38,6 +38,23 @@ def test_smacrossfuture_backtest(snapshot):
     # plt.show()
 
 
+def test_smacrossfuture_liquidation(snapshot):
+    bot = Bot(mode="backtest", start="2024-09-01", end="2024-10-01")
+    strat = SMACrossFuture(**{"ticker": "USDT/BTC:USDT", "freq": "1h", "fast": 10, "slow": 30, "leverage": 50})
+    strat.next.trigger = [StrategyFirstRun(), StandardInterval(strat.param["freq"])]
+    bot.add_strategy(strat)
+    bot.run()
+
+    # report
+    assert_report(bot.strategy.report, snapshot)
+
+    # plot
+    fig = bot.strategy.plot()
+    import matplotlib.pyplot as plt
+    plt.figure(fig.number)
+    # plt.show()
+
+
 # def test_multi_backtest():
 #     bot = Bot(mode="backtest", start="2024-09-01", end="2024-10-01")
 #     bot.add_strategy(SMACross(ticker="USDT/BTC", capital=10))
