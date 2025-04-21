@@ -38,7 +38,8 @@ class CCXTExchange(RealExchange):
         USDT/BTC -> BTC/USDT
         USDT/BTC:USDT-250404 -> BTC/USDT:USDT-250404
         """
-        return "/".join(ticker.split(":")[0].split("/")[::-1])
+        left, right = ticker.split(":")
+        return ":".join(["/".join(left.split("/")[::-1]), right])
 
     @functools.lru_cache(maxsize=128)
     def get_price(self, ticker: str, now: pd.Timestamp) -> float:
