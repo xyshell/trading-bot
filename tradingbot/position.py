@@ -20,8 +20,8 @@ class Position(BaseModel):
     leverage: float = Field(default=np.nan)
     entry_prc: float = Field(default=np.nan)
     mark_prc: float = Field(default=np.nan)
-    margin: float = Field(default=0.0, ge=0.0)  # i.e. collateral
-    fee: float = Field(default=0.0, ge=0.0)
+    margin: float = Field(default=0.0)  # i.e. collateral
+    fee: float = Field(default=0.0)
 
     # managed fields
     id_: str | None = Field(default=None)
@@ -58,8 +58,8 @@ class Position(BaseModel):
     @property
     def pnl(self) -> float:
         """PnL = (mark - entry) * amount - fee"""
-        prc_chg = self.mark_prc - self.entry_prc if self.side is self.Side.LONG else self.entry_prc - self.mark_prc
-        return prc_chg * self.amount - self.fee
+        prc_diff = self.mark_prc - self.entry_prc if self.side is self.Side.LONG else self.entry_prc - self.mark_prc
+        return prc_diff * self.amount - self.fee
 
     @computed_field
     @property
@@ -85,18 +85,25 @@ class Position(BaseModel):
         total_amount = self.amount + other.amount
         self_entry_prc = 0.0 if np.isnan(self.entry_prc) else self.entry_prc
         other_entry_prc = 0.0 if np.isnan(other.entry_prc) else other.entry_prc
-        try:
-            weighted_entry = (self_entry_prc * abs(self.amount) + other_entry_prc * abs(other.amount)) / abs(total_amount)
-        except ZeroDivisionError:
-            weighted_entry = np.nan
         combined_fee = self.fee + other.fee
         combined_margin = self.margin + other.margin
         latest_time = max(self.updated_at, other.updated_at)
         mark_prc = other.mark_prc
 
+        if self.amount == 0.0 or other.amount == 0.0 or np.sign(self.amount) == np.sign(other.amount):
+            # open or add positions
+            new_entry = (
+                self_entry_prc * abs(self.amount) + other_entry_prc * abs(other.amount)
+            ) / abs(total_amount) if total_amount != 0 else np.nan
+        else:
+            if abs(total_amount) < 1e-10:  # fully closed
+                new_entry = np.nan  
+            else:  # partially closed
+                new_entry = self_entry_prc
+
         return self.model_copy(update={
             "amount": total_amount,
-            "entry_prc": weighted_entry,
+            "entry_prc": new_entry,
             "mark_prc": mark_prc,
             "margin": combined_margin,
             "fee": combined_fee,

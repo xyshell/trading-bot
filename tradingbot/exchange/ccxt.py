@@ -68,14 +68,36 @@ class CCXTExchange(RealExchange):
         import ccxt
 
         symbol = self.get_symbol(order.ticker)
+        action = order.action
         type = order.type.value
-        side = order.action.value
         amount = order.amount
         price = order.param.get("price")
-    
+
+        params = {}
+        if action in {Order.Action.BUY, Order.Action.SELL}:  # spot order
+            side = action.value
+        else:  # derivative order
+            params["tdMode"] = "isolated"
+            if action is Order.Action.OPEN_LONG:
+                side = "buy"
+                params["posSide"] = "long"
+                params["reduceOnly"] = False
+            elif action is Order.Action.CLOSE_LONG:
+                side = "sell"
+                params["posSide"] = "long"
+                params["reduceOnly"] = True
+            elif action is Order.Action.OPEN_SHORT:
+                side = "sell"
+                params["posSide"] = "short"
+                params["reduceOnly"] = False
+            elif action is Order.Action.CLOSE_SHORT:
+                side = "buy"
+                params["posSide"] = "short"
+                params["reduceOnly"] = True
+
         try:
-            self.strategy.logger.debug(f"Calling client.create_order('{symbol}', '{type}', '{side}', '{amount}')")
-            resp = self.client.create_order(symbol=symbol, type=type, side=side, amount=amount, price=price)
+            self.strategy.logger.debug(f"Calling client.create_order('{symbol}', '{type}', '{side}', '{amount}', '{params})")
+            resp = self.client.create_order(symbol=symbol, type=type, side=side, amount=amount, price=price, params=params)
         except Exception as e:
             order.status = Order.Status.REJECTED
             order.updated_at = self.strategy.now

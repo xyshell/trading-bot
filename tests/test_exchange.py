@@ -1116,7 +1116,7 @@ class TestCCXTExchange:
         assert new_order.status is Order.Status.NEW
         exchange.execute("limit", new_order)
         exchange.update(new_order)
-        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1)
+        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1, params={})
         assert new_order.id_ is not None
         assert new_order.status is Order.Status.FILLED
         assert new_order not in exchange.strategy.order
@@ -1142,7 +1142,7 @@ class TestCCXTExchange:
         )
         assert new_order.status is Order.Status.NEW
         exchange.execute("limit", new_order)
-        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1)
+        mock_client.create_order.assert_called_once_with(symbol="BTC/USDT", type="limit", side="buy", amount=0.5, price=62398.1, params={})
         assert new_order.status is Order.Status.PENDING
         assert new_order.id_ is not None
         exchange.update(new_order)

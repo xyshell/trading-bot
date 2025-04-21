@@ -39,7 +39,7 @@
   -133.9234
 # ---
 # name: test_smacrossfuture_backtest.10
-  nan
+  -0.1928
 # ---
 # name: test_smacrossfuture_backtest.2
   60.8903
@@ -48,7 +48,7 @@
   Timestamp('2024-09-16 05:46:40')
 # ---
 # name: test_smacrossfuture_backtest.4
-  Timedelta('28 days 10:00:00')
+  Timedelta('14 days 04:30:00')
 # ---
 # name: test_smacrossfuture_backtest.5
   0.006333333333333334
@@ -60,7 +60,7 @@
   Timestamp('2024-09-16 05:46:40')
 # ---
 # name: test_smacrossfuture_backtest.8
-  1
+  2
 # ---
 # name: test_smacrossfuture_backtest.9
   -2.3714

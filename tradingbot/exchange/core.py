@@ -186,9 +186,15 @@ class FakeExchange(Exchange):
         new_balance = copy.deepcopy(self.strategy.balance)
         if frm in derivative_markets:  # close position
             existing_pos = self.fetch_positions([frm])[frm][order.side]
-            margin = order.amount * exec_prc * derivative_markets[frm]["contractSize"] / existing_pos.leverage
-            tcost = margin * self._commission
-            to_qty = existing_pos.margin + existing_pos.pnl + existing_pos.fee - tcost  # add fee back to avoid double counting
+            existing_amount = existing_pos.amount
+            share = order.amount / existing_amount
+
+            tcost_basis = order.amount * exec_prc * derivative_markets[frm]["contractSize"] / existing_pos.leverage
+            tcost = tcost_basis * self._commission
+            prorata_margin = existing_pos.margin * share
+            prorata_pnl = existing_pos.pnl * share
+            prorata_fee = existing_pos.fee * share
+            to_qty = prorata_margin + prorata_pnl + prorata_fee - tcost  # add fee back to avoid double counting
 
             minus_pos = Position(
                 ticker=order.ticker,
@@ -197,7 +203,8 @@ class FakeExchange(Exchange):
                 leverage=existing_pos.leverage,
                 entry_prc=exec_prc,
                 mark_prc=exec_prc,
-                fee=tcost,
+                margin=-prorata_margin,
+                fee=-prorata_fee,
                 created_at=self.strategy.now,
                 updated_at=self.strategy.now,
                 contract_size=derivative_markets[frm]["contractSize"],
@@ -308,7 +315,10 @@ class FakeExchange(Exchange):
             case _:
                 return order
 
-        order = self._reconcile_asset(order, exec_prc)
+        if order.action in {Order.Action.BUY, Order.Action.SELL}:
+            order = self._reconcile_asset(order, exec_prc)
+        else:  # OPEN_LONG, OPEN_SHORT, CLOSE_LONG, CLOSE_SHORT
+            order = self._reconcile_position(order, exec_prc)
         return order
 
     def update(self, order: Order) -> Order:

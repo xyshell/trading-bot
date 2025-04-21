@@ -92,24 +92,30 @@ class Strategy(abc.ABC):
             candlestick = candlestick_highest
         candlestick_df = candlestick.load(now=port_report.index[-1], load_len=len(port_report))
         df = pd.merge_asof(asset_report, candlestick_df, right_on="close_time", left_index=True)
-        buy_sell = transaction_report[["timestamp", "frm_asset", "frm_qty", "to_asset", "to_qty", "prc"]].copy()
-        buy_sell["frm_qty_pos"] = buy_sell["frm_qty"] > 0
-        buy_sell["frm_qty_neg"] = buy_sell["frm_qty"] < 0
-        buy_sell["to_qty_pos"] = buy_sell["to_qty"] > 0
-        buy_sell["to_qty_neg"] = buy_sell["to_qty"] < 0
-        buy_sell["frm_asset_eq_currency"] = buy_sell["frm_asset"] == self.currency
-        buy_sell["to_asset_eq_currency"] = buy_sell["to_asset"] == self.currency
 
-        buy_sell["BUY"] = np.where(
-            buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_pos"] | buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_neg"],
-            buy_sell["prc"], 
-            np.nan
-        )
-        buy_sell["SELL"] = np.where(
-            buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_pos"] | buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_neg"],
-            buy_sell["prc"], 
-            np.nan
-        )
+        if not transaction_report.empty:
+            buy_sell = transaction_report[["timestamp", "frm_asset", "frm_qty", "to_asset", "to_qty", "prc"]].copy()
+            buy_sell["frm_qty_pos"] = buy_sell["frm_qty"] > 0
+            buy_sell["frm_qty_neg"] = buy_sell["frm_qty"] < 0
+            buy_sell["to_qty_pos"] = buy_sell["to_qty"] > 0
+            buy_sell["to_qty_neg"] = buy_sell["to_qty"] < 0
+            buy_sell["frm_asset_eq_currency"] = buy_sell["frm_asset"] == self.currency
+            buy_sell["to_asset_eq_currency"] = buy_sell["to_asset"] == self.currency
+            buy_sell["BUY"] = np.where(
+                buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_pos"] | buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_neg"],
+                buy_sell["prc"], 
+                np.nan
+            )
+            buy_sell["SELL"] = np.where(
+                buy_sell["to_asset_eq_currency"] & buy_sell["frm_qty_pos"] | buy_sell["frm_asset_eq_currency"] & buy_sell["to_qty_neg"],
+                buy_sell["prc"], 
+                np.nan
+            )
+        else:
+            buy_sell = pd.DataFrame(columns=["timestamp", "BUY", "SELL"])
+            buy_sell["timestamp"] = pd.to_datetime(buy_sell["timestamp"])
+            buy_sell["BUY"] = buy_sell["BUY"].astype(float)
+            buy_sell["SELL"] = buy_sell["SELL"].astype(float)
 
         df = pd.concat([df, buy_sell.set_index("timestamp")[["BUY", "SELL"]].drop_duplicates()], axis=1)
         if "volume" not in df.columns and "base_volume" in df.columns:
@@ -137,8 +143,8 @@ class Strategy(abc.ABC):
                 mpf.make_addplot(df[nav_col], panel=0, alpha=1.0, color="b", label=nav_col, secondary_y=False),
                 *[mpf.make_addplot(df[col], panel=0, alpha=0.4, secondary_y=True, label=col) for col in asset_report.columns if col != nav_col],
                 # panel 1
-                mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#4db344", secondary_y=False, label="BUY"),
-                mpf.make_addplot(df["SELL"], panel=1, type="scatter", markersize=50, marker="v", color="#fa5f7e", secondary_y=False, label="SELL"),
+                mpf.make_addplot(df["BUY"], panel=1, type="scatter", markersize=50, marker="^", color="#4db344", secondary_y=False),
+                mpf.make_addplot(df["SELL"], panel=1, type="scatter", markersize=50, marker="v", color="#fa5f7e", secondary_y=False),
                 # mpf.make_addplot(df["BUY_PLUS"], panel=1, type="scatter", markersize=50, marker=10, color="#4db344", secondary_y=False, label=""),
                 # mpf.make_addplot(df["SELL_PLUS"], panel=1, type="scatter", markersize=50, marker=11, color="#fa5f7e", secondary_y=False, label=""),
                 # panel 2
