@@ -93,9 +93,10 @@ class Balance(UserDict):
             return self
 
         balance = copy.deepcopy(self)
-        data = exchange.fetch_balance(balance_type)
+        bal = exchange.fetch_balance(balance_type)
+        pos = exchange.fetch_positions([])
         if subset:
-            data = {k: v for k, v in data.items() if k in subset}
+            data = {k: v for k, v in (bal | pos).items() if k in subset}
         balance.data = data
         return balance
 
@@ -110,8 +111,11 @@ class Balance(UserDict):
             dict[str, float]
         """
         markets = exchange.load_markets()
+        spot_markets = {k: v for k, v in markets.items() if v["type"] == "spot"}
         derivative_markets = {k: v for k, v in markets.items() if v["type"] in {"future", "swap", "option"}}
-        tickers = [f"{currency}/{asset}" if f"{currency}/{asset}" in markets else f"{asset}/{currency}" for asset in self.data.keys()]
+        spot_tickers = [f"{currency}/{asset}" if f"{currency}/{asset}" in spot_markets else f"{asset}/{currency}" for asset in self.data.keys() if asset in spot_markets]
+        derivative_tickers = [asset for asset in self.data.keys() if asset in derivative_markets]
+        tickers = spot_tickers + derivative_tickers
         trivial_ticker = f"{currency}/{currency}"
         if trivial_ticker in tickers:
             tickers.remove(trivial_ticker)

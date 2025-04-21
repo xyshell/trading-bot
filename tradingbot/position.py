@@ -59,7 +59,7 @@ class Position(BaseModel):
     def pnl(self) -> float:
         """PnL = (mark - entry) * amount - fee"""
         prc_diff = self.mark_prc - self.entry_prc if self.side is self.Side.LONG else self.entry_prc - self.mark_prc
-        return prc_diff * self.amount - self.fee
+        return (prc_diff * self.amount) * self.contract_size - self.fee
 
     @computed_field
     @property
