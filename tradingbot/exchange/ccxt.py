@@ -132,6 +132,8 @@ class CCXTExchange(RealExchange):
     def update(self, order: Order) -> Order:
         if order.status is Order.Status.REJECTED:
             return order
+        markets = self.load_markets()
+        derivative_markets = {k: v for k, v in markets.items() if v["type"] in {"future", "swap", "option"}}
         symbol = self.get_symbol(order.ticker)
         info = self._safe_fetch_order(order.id_, symbol=symbol)
         order.updated_at = pd.Timestamp(info["timestamp"], unit="ms")
@@ -153,8 +155,20 @@ class CCXTExchange(RealExchange):
                 order.filled_at = pd.Timestamp(info["timestamp"], unit="ms")
                 
                 frm, to = self.get_frm_to(order)
-                frm_qty = info["cost"] if order.action is Order.Action.BUY else order.amount
-                to_qty = info["cost"] if order.action is Order.Action.SELL else order.amount
+                if order.action in {
+                    Order.Action.BUY, Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT
+                }:
+                    frm_qty = info["cost"]
+                    to_qty = order.amount
+                    if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
+                        frm_qty /= float(info["info"]["lever"])
+                else:  # SELL, CLOSE_LONG, CLOSE_SHORT
+                    frm_qty = order.amount
+                    to_qty = info["cost"]
+                    if order.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
+                        to_qty /= float(info["info"]["lever"])
+                        to_qty += float(info["info"]["pnl"])
+
                 trans = Transaction(
                     frm, frm_qty, 
                     to, to_qty, 
@@ -164,8 +178,43 @@ class CCXTExchange(RealExchange):
                     timestamp=self.strategy.now
                 )
                 self.strategy.transaction_history.append(trans)
-                self.strategy.balance[frm] -= frm_qty
-                self.strategy.balance[to] += to_qty
+                if frm in derivative_markets:
+                    pos_pair = self.strategy.balance[frm]
+                    pos = pos_pair[info["info"]["posSide"]]
+                    minus_pos = Position(
+                        ticker=order.ticker,
+                        side=order.side,
+                        amount=-order.amount,
+                        leverage=pos.leverage,
+                        entry_prc=info["average"],
+                        mark_prc=info["average"],
+                        margin=-pos.margin * order.amount / pos.amount,  # pro-rata margin
+                        fee=-pos.fee * order.amount / pos.amount,  # pro-rata fee
+                        created_at=self.strategy.now,
+                        updated_at=self.strategy.now,
+                        contract_size=derivative_markets[frm]["contractSize"],
+                    )
+                    self.strategy.balance.close_position(minus_pos)
+                else:  # spot
+                    self.strategy.balance[frm] -= frm_qty
+                if to in derivative_markets:
+                    pos_pair = self.strategy.balance[to]
+                    plus_pos = Position(
+                        ticker=order.ticker,
+                        side=order.side,
+                        amount=order.amount,
+                        leverage=info["info"]["lever"],
+                        entry_prc=info["average"],
+                        mark_prc=info["average"],
+                        margin=info["cost"] / float(info["info"]["lever"]),
+                        fee=info["fee"]["cost"],
+                        created_at=self.strategy.now,
+                        updated_at=self.strategy.now,
+                        contract_size=derivative_markets[to]["contractSize"],
+                    )
+                    self.strategy.balance.add_position(plus_pos)
+                else:  # spot
+                    self.strategy.balance[to] += to_qty
                 if order in self.strategy.order:
                     self.strategy.order.remove(order)
                 if order not in self.strategy.order_history:
