@@ -113,7 +113,12 @@ class Balance(UserDict):
         markets = exchange.load_markets()
         spot_markets = {k: v for k, v in markets.items() if v["type"] == "spot"}
         derivative_markets = {k: v for k, v in markets.items() if v["type"] in {"future", "swap", "option"}}
-        spot_tickers = [f"{currency}/{asset}" if f"{currency}/{asset}" in spot_markets else f"{asset}/{currency}" for asset in self.data.keys() if asset in spot_markets]
+        spot_tickers = []
+        for asset in self.data.keys():
+            if f"{currency}/{asset}" in spot_markets:
+                spot_tickers.append(f"{currency}/{asset}")
+            elif f"{asset}/{currency}" in spot_markets:
+                spot_tickers.append(f"{asset}/{currency}")
         derivative_tickers = [asset for asset in self.data.keys() if asset in derivative_markets]
         tickers = spot_tickers + derivative_tickers
         trivial_ticker = f"{currency}/{currency}"
@@ -226,8 +231,12 @@ class Balance(UserDict):
         if size_type == _SizeType.QTY or size == 0.0:
             qty = size
         else:  # size_type == _SizeType.PCTG
-            pos_margin = self[ticker][side_str].margin if self[ticker].get(side_str) else 0.0
-            margin_value = self[margin_asset] + pos_margin
+            pos = self[ticker].get(side_str)
+            if pos is not None and pos.amount > 0:
+                pos_value = pos.margin + pos.pnl + pos.fee
+            else:
+                pos_value = 0.0
+            margin_value = self[margin_asset] + pos_value
             raw_qty = Balance({margin_asset: margin_value}).evaluate(trader.exchange, base_asset)[margin_asset]
             markets = trader.exchange.load_markets()
             qty = raw_qty * size * leverage / markets[ticker]["contractSize"]
