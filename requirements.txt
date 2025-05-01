@@ -19,7 +19,7 @@ yfinance==0.2.55  # optional
 python-binance==1.0.28  # optional
 
 # exchange
-ccxt==4.4.71  # optional
+ccxt==4.4.78  # optional
 
 # slack
 slack_sdk  # optional
