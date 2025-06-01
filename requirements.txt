@@ -15,7 +15,7 @@ dask-kubernetes==2025.1.1
 psycopg2==2.9.10
 
 # data
-yfinance==0.2.55  # optional
+yfinance==0.2.61  # optional
 python-binance==1.0.28  # optional
 
 # exchange
