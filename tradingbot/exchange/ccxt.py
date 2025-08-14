@@ -380,5 +380,5 @@ class CCXTExchange(RealExchange):
             )
         return res
 
-    def set_leverage(self, ticker: str, side: str, leverage: PosFloat):
+    def set_leverage(self, ticker: str, side: str, leverage: PosFloat) -> None:
         self.client.set_leverage(leverage, self.get_symbol(ticker), params={"mgnMode": "isolated", "posSide": side})
