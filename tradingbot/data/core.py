@@ -1,10 +1,10 @@
 import abc
-import collections
 import logging
 import threading
 from typing import Self
 import typing
 from functools import cached_property
+from collections import UserDict, defaultdict
 
 import pandas as pd
 
@@ -55,7 +55,7 @@ class Data:
         self.load_len = load_len
         self._cached = None
 
-        self.value = collections.defaultdict(pd.Series)
+        self.value = defaultdict(pd.Series)
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -112,28 +112,41 @@ class Data:
             self.value[line] = df[line]
 
 
-class DataManager(dict):
+class DataManager(UserDict):
     def __init__(self, *args, mode: ModeType, **kwargs):
         super().__init__(*args, **kwargs)
         self._mode = mode
-        for data in self.values():
+
+        for data in self.data.values():
             data.mode = mode
 
         from tradingbot.data import Candlestick
 
-        self._candlestick_data = [data for data in self.values() if isinstance(data, Candlestick)]
-        assert self._candlestick_data, "Data must contain at least one tb.data.Candlestick()"
+        self._candlestick_data = [
+            data for data in self.data.values() if isinstance(data, Candlestick)
+        ]
+        assert self._candlestick_data, "DataManager must contain at least one Candlestick"
 
     @cached_property
     def ticker2candle(self) -> dict[str, Data]:
-        ticker2min_freq = collections.defaultdict(lambda: pd.Timedelta.max)
-        ticker2candle = {}  # reference ticker to the candlestick with highest frequency
-        for data in self._candlestick_data:
-            if pd.Timedelta(data.freq) < ticker2min_freq[data.ticker]:
-                ticker2min_freq[data.ticker] = pd.Timedelta(data.freq)
-                ticker2candle[data.ticker] = data
+        """Map ticker (and aliases) to highest-frequency Candlestick"""
+        ticker2min_freq = defaultdict(lambda: pd.Timedelta.max)
+        ticker2candle = {}
+
+        for candle in self._candlestick_data:
+            freq = pd.Timedelta(candle.freq)
+            if freq < ticker2min_freq[candle.ticker]:
+                ticker2min_freq[candle.ticker] = freq
+                ticker2candle[candle.ticker] = candle
+                for alias in candle.alias:
+                    ticker2candle[alias] = candle
+
         return ticker2candle
 
     @property
     def ticker2close(self) -> dict[str, float]:
-        return {k: v["close"].iloc[-1] for k, v in self.ticker2candle.items()}
+        """Map ticker to its latest close price"""
+        return {
+            ticker: data["close"].iloc[-1]
+            for ticker, data in self.ticker2candle.items()
+        }

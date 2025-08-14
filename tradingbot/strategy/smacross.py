@@ -82,60 +82,62 @@ class SMACross(Strategy):
         return fig
 
 
-# class SMACrossFuture(Strategy):
-#     param = {"coin": "BTC", "freq": "1m", "fast": 10, "slow": 30}
+class SMACrossFuture(SMACross):
+    param = {"ticker": "USDT/BTC:USDT", "freq": "1m", "fast": 10, "slow": 30, "leverage": 5}
 
-#     def __init__(self):
-#         super().__init__()
-#         self.trader = Trader(FakeExchange(commission=0.001))
-#         self.balance = Balance(USDT=10_000)
-#         self.data = {
-#             "candlestick": Candlestick("binance", ticker=f"USDT/{self.param['coin']}:USDT", freq=self.freq, load_len=self.param["slow"] + 5)
-#         }
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.trader = Trader(FakeExchange(commission=0.001), CCXTExchange())
+        self.balance = Balance(USDT=100)
+        self.data = {
+            "candlestick": Candlestick("binance", ticker=self.param['ticker'].split(":")[0], freq=self.param['freq'], load_len=self.param["slow"] + 5, alias=self.param['ticker'])
+        }
 
-#     @schedule([StrategyFirstRun(), StandardInterval("1m")])  # when to trigger the function
-#     def next(self):  # function to be called when triggered
-#         close = self.data["candlestick"]["close"]  # get access to subscribed data from self.data['key']['field']
-#         pfast, pslow = self.param["fast"], self.param["slow"]  # get access to parameters from self.param
+    @schedule([StrategyFirstRun(), StandardInterval("1m")])  # when to trigger the function
+    def next(self):  # function to be called when triggered
+        close = self.data["candlestick"]["close"]  # get access to subscribed data from self.data['key']['field']
+        pfast, pslow = self.param["fast"], self.param["slow"]  # get access to parameters from self.param
 
-#         # use your favorable way to compute indicators from a pd.Series
-#         sma_fast = close.rolling(window=pfast).mean()  
-#         sma_slow = close.rolling(window=pslow).mean()
-#         crossup = sma_fast.iloc[-2] < sma_slow.iloc[-2] and sma_fast.iloc[-1] >= sma_slow.iloc[-1]
-#         crossdown = sma_fast.iloc[-2] > sma_slow.iloc[-2] and sma_fast.iloc[-1] <= sma_slow.iloc[-1]
+        # use your favorable way to compute indicators from a pd.Series
+        sma_fast = close.rolling(window=pfast).mean()
+        sma_slow = close.rolling(window=pslow).mean()
+        crossup = sma_fast.iloc[-2] < sma_slow.iloc[-2] and sma_fast.iloc[-1] >= sma_slow.iloc[-1]
+        crossdown = sma_fast.iloc[-2] > sma_slow.iloc[-2] and sma_fast.iloc[-1] <= sma_slow.iloc[-1]
 
-#         # store any information for later use, e.g. plotting
-#         self.store = {
-#             "sma_fast": sma_fast.iloc[-1],
-#             "sma_slow": sma_slow.iloc[-1],
-#             "crossup": crossup,
-#             "crossdown": crossdown,
-#         }
+        # store any information for later use, e.g. plotting
+        self.store = {
+            "sma_fast": sma_fast.iloc[-1],
+            "sma_slow": sma_slow.iloc[-1],
+            "crossup": crossup,
+            "crossdown": crossdown,
+        }
 
-#         if crossup:
-#             self.logger.debug(f"SMA crossed up, close short and open long at {close.iloc[-1]:.2f} 🟢🟢🟢")
-#             self.balance.target(
-#                 0.0, "PCTG", "SHORT", f"USDT/{self.param['coin']}:USDT", trader=self.trader
-#             )  # target [0] [percentage] of [short] position of contract [USDT/BTC:USDT]
-#             self.balance.target(
-#                 1.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", leverage=5, trader=self.trader
-#             )  # convert [100] [percentage] of [long] position of contract [USDT/BTC:USDT], with leverage x[5]
-#         elif crossdown:
-#             self.logger.debug(f"SMA crossed down, close long and open short at {close.iloc[-1]:.2f} 🔴🔴🔴")
-#             self.balance.target(
-#                 0.0, "PCTG", "LONG", f"USDT/{self.param['coin']}:USDT", trader=self.trader
-#             )  # target [0] [percentage] of [long] position of contract [USDT/BTC:USDT]
-#             self.balance.target(
-#                 1.0, "PCTG", "SHORT", f"USDT/{self.param['coin']}:USDT", leverage=5, trader=self.trader
-#             )  # target [100] [percentage] of [short] position of contract [USDT/BTC:USDT], with leverage x[5]
+        if crossup:
+            self.logger.info(f"SMA crossed up, close short and open long at {close.iloc[-1]:.2f} 🟢🟢🟢")
+            self.balance.target(
+                0.0, "PCTG", "SHORT", self.param['ticker'], trader=self.trader
+            )  # target [0] [percentage] of [short] position of contract [USDT/BTC:USDT]
+            self.balance.target(
+                1.0, "PCTG", "LONG", self.param['ticker'], trader=self.trader, leverage=self.param['leverage']
+            )  # convert [100] [percentage] of [long] position of contract [USDT/BTC:USDT], with leverage x[5]
+        elif crossdown:
+            self.logger.info(f"SMA crossed down, close long and open short at {close.iloc[-1]:.2f} 🔴🔴🔴")
+            self.balance.target(
+                0.0, "PCTG", "LONG", self.param['ticker'], trader=self.trader
+            )  # target [0] [percentage] of [long] position of contract [USDT/BTC:USDT]
+            self.balance.target(
+                1.0, "PCTG", "SHORT", self.param['ticker'], trader=self.trader, leverage=self.param['leverage']
+            )  # target [100] [percentage] of [short] position of contract [USDT/BTC:USDT], with leverage x[5]
+        else:
+            self.logger.debug(f"Nothing happened. sma_fast={sma_fast.iloc[-1]:.2f}, sma_slow={sma_slow.iloc[-1]:.2f}")
 
 
 if __name__ == "__main__":
     import tradingbot as tb
     
     # step 1: initialize a bot
-    # bot = tb.Bot(mode="backtest", start="2024-09-01", end="2024-10-01")  # backtest
-    bot = tb.Bot(mode="paper")  # paper
+    bot = tb.Bot(mode="backtest", start="2024-09-01", end="2024-10-01")  # backtest
+    # bot = tb.Bot(mode="paper")  # paper
     # bot = tb.Bot(mode="live")  # live
 
     # step 2: add strategy

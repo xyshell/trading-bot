@@ -1,6 +1,7 @@
 from dataclasses import asdict
 import math
 import logging
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,16 @@ class Reporter:
             return pd.DataFrame()
         asset_report = {}
         for timestamp, balance in strategy.balance_history.items():
-            asset_report[timestamp] = pd.Series(balance)
+            bal = balance.copy()
+            if positions := bal.positions:
+                exposure = defaultdict(float)
+                for ticker, pos_pair in positions.items():
+                    if long_pos := pos_pair.get("long"):
+                        exposure[ticker] += long_pos.notional
+                    if short_pos := pos_pair.get("short"):
+                        exposure[ticker] -= short_pos.notional
+                bal.data.update(exposure)
+            asset_report[timestamp] = pd.Series(bal)
         asset_report = pd.concat(asset_report).unstack()
         asset_report.index.rename("timestamp", inplace=True)
         return asset_report.reset_index()
@@ -61,7 +71,7 @@ class Reporter:
         ptf_report = ptf_report.set_index("timestamp")
         nav_col = f"NAV_{strategy.currency}"
         ptf_hist_ret = ptf_report[nav_col].pct_change()
-        is_exposed = ptf_hist_ret.fillna(0.0) != 0.0
+        is_exposed = ptf_hist_ret.fillna(0.0).abs() > 1e-6
         is_exposed_chg = is_exposed.astype(int).diff()
         trade_start = is_exposed_chg.index[is_exposed_chg == 1]
         trade_end = is_exposed_chg.index[is_exposed_chg == -1]
@@ -90,7 +100,7 @@ class Reporter:
         N = pd.Timedelta("365 days") / pd.Timedelta(freq)
         # portfolio
         ptf_hist_ret = ptf_report[nav_col].pct_change()
-        is_exposed = ptf_hist_ret.fillna(0.0) != 0.0
+        is_exposed = ptf_hist_ret.fillna(0.0).abs() > 1e-6
         exposure_time = is_exposed.sum() / len(is_exposed)
         ptf_ret = ptf_report[nav_col].iloc[-1] / ptf_report[nav_col].iloc[0] - 1
         ptf_ret_peak = ptf_report[nav_col].max() / ptf_report[nav_col].iloc[0] - 1
