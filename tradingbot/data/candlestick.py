@@ -1,5 +1,6 @@
 import importlib
 import logging
+from typing import Iterable
 import warnings
 
 import concurrent
@@ -34,17 +35,19 @@ class Candlestick(Data):
         "quote_volume": float,
     }
 
-    def __init__(self, *_, ticker: str, freq: str, closed_only: bool = True, **kwargs):
+    def __init__(self, *_, ticker: str, freq: str, closed_only: bool = True, alias: str | Iterable = None, **kwargs):
         """
         Args:
             ticker (str): ticker name, e.g. "USDT/BTC"
             freq (str): update frequency and candlestick interval, e.g. "1h", "1d"
             closed_only (bool): if True, only return closed candles, default is True
+            alias (str | Iterable): alias name for the candlestick
         """
         super().__init__(**kwargs)
         self.ticker = ticker
         self.freq = freq
         self.closed_only = closed_only
+        self.alias = util.to_list(alias)
 
     def __repr__(self):
         df = pd.concat({key: self[key] for key in self.field}, axis=1)

@@ -80,6 +80,32 @@ def update_candlestick(source: str, ticker_freq_start: List[Dict[str, str | pd.T
     for thread in threads:
         thread.join()
 
+@st.fragment
+def update_candlestick_fragment(df):
+    event = st.dataframe(
+        source_df,
+        use_container_width=True,
+        height=500,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="multi-row",
+    )
+
+    ticker_freq_start = source_df.iloc[event.selection.rows][["ticker", "freq", "EndTime"]].to_dict(orient="records")
+    button_update = st.button("Update Selection")
+    if button_update:
+        if not ticker_freq_start:
+            st.warning("No selection made, nothing to update")
+        else:
+            update_candlestick(source, ticker_freq_start, now)
+            st.success("Update Completed.")
+            progress_bar = st.progress(0, text="Reloading...")
+            for percent_complete in range(100):
+                progress_bar.progress(percent_complete + 1, text="Reloading...")
+                time.sleep(0.01)
+            time.sleep(0.5)
+            st.rerun()
+
 
 with tab_candlestick:
     sources = list(config.source.__dict__.keys())
@@ -89,27 +115,4 @@ with tab_candlestick:
         st.subheader(f"{source}")
         now = util.utc_now_factory()
         source_df = get_candlestick_status(source, now)
-
-        event = st.dataframe(
-            source_df,
-            use_container_width=True,
-            height=500,
-            hide_index=True,
-            on_select="rerun",
-            selection_mode="multi-row",
-        )
-
-        ticker_freq_start = source_df.iloc[event.selection.rows][["ticker", "freq", "EndTime"]].to_dict(orient="records")
-        button_update = st.button("Update Selection")
-        if button_update:
-            if not ticker_freq_start:
-                st.warning("No selection made, nothing to update")
-            else:
-                update_candlestick(source, ticker_freq_start, now)
-                st.success("Update Completed.")
-                progress_bar = st.progress(0, text="Reloading...")
-                for percent_complete in range(100):
-                    progress_bar.progress(percent_complete + 1, text="Reloading...")
-                    time.sleep(0.01)
-                time.sleep(0.5)
-                st.rerun()
+        update_candlestick_fragment(source_df)

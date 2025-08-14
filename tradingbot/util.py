@@ -9,7 +9,7 @@ import functools
 import numpy as np
 from typing_extensions import Annotated
 
-from pydantic import AfterValidator
+from pydantic import AfterValidator, confloat
 import sqlalchemy as sa
 import pandas as pd
 
@@ -47,6 +47,8 @@ def check_timedelta(v: str) -> pd.Timedelta:
 ModeType = Annotated[str, AfterValidator(check_mode)]
 DatetimeType = Annotated[str | pd.Timestamp, AfterValidator(check_datetime)]
 TimedeltaType = Annotated[str | pd.Timedelta, AfterValidator(check_timedelta)]
+NonNegFloat = Annotated[float, confloat(ge=0.0)]
+PosFloat = Annotated[float, confloat(gt=0.0)]
 
 TYPE_MAPPING = {float: sa.Float, int: sa.Integer, str: sa.String, pd.Timestamp: sa.DateTime}
 
@@ -92,7 +94,7 @@ def to_list(obj):
     if obj is None:
         return []
     elif isinstance(obj, (list, tuple)):
-        return obj
+        return list(obj)
     else:
         return [obj]
 
@@ -181,7 +183,8 @@ def get_strategy_logger(name: str, add_slack: bool = True) -> logging.Logger:
 
     # logging to file
     log_dir = pathlib.Path(config.logging.handlers["file"]["filename"]).parent
-    file_handler = logging.FileHandler(f"{log_dir / name}.log", mode="a", encoding="utf-8")
+    filename = str(log_dir / name.replace(":", "_")) + ".log"
+    file_handler = logging.FileHandler(filename, mode="a", encoding="utf-8")
     file_handler.setFormatter(
         logging.Formatter(config.logging.formatters["standard"]["format"], config.logging.formatters["standard"]["datefmt"])
     )

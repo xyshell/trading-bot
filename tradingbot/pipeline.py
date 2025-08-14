@@ -49,22 +49,6 @@ class Pipeline(abc.ABC):
         toc = time.time()
         logger.debug(f"Data Update: took {toc - tic:.2f} seconds")
 
-    # @staticmethod
-    # def _mark_to_market(strategy: Strategy):
-    #     pass
-        # get candlestick for market value update
-
-        # spot_positions = [pos for pos in strategy.balance.positions.values() if isinstance(pos, SpotPosition)]
-        # update market price for spot positions
-        # for pos in spot_positions:
-            # for ticker, candle in strategy.data.ticker2candle.items():
-                # update market price
-                # if pos.asset == util.get_base_asset(ticker):
-                    # pos.market_value = Position(asset=util.get_quote_asset(ticker), qty=candle["close"].iloc[-1])
-                # TODO: check liquidation for margin position
-                # if isinstance(pos, MarginPosition):
-                #     if pos.margin[1] < 0:
-                #         pos.clear()
 
 class BacktestPipeline(Pipeline):
     @util.validate
@@ -97,7 +81,7 @@ class BacktestPipeline(Pipeline):
         # update data
         self._update_data(now, strategy.data)
 
-        # execute order
+        # execute pending order
         for order in strategy.order:
             strategy.trader.exchange.execute(order.type.value, order)
         
@@ -105,11 +89,31 @@ class BacktestPipeline(Pipeline):
         for order in strategy.order:
             strategy.trader.exchange.update(order)
 
+        # mark to market
+        for ticker, pos_pair in strategy.balance.positions.items():
+            candle = strategy.data.ticker2candle[ticker]
+            high = candle["high"].iloc[-1]
+            low = candle["low"].iloc[-1]
+            close = candle["close"].iloc[-1]
+            if long_pos := pos_pair.get("long"):
+                long_pos.updated_at = now
+                if low < long_pos.liquidation_prc:
+                    long_pos.clear()
+                else:
+                    long_pos.mark_prc = close
+            if short_pos := pos_pair.get("short"):
+                short_pos.updated_at = now
+                if high > short_pos.liquidation_prc:
+                    short_pos.clear()
+                else:
+                    short_pos.mark_prc = close
+
     def _post(self, now: pd.Timestamp, strategy: Strategy) -> None:
         """Post process after strategy run"""
         # record balance
         strategy.balance_history[now] = copy.deepcopy(strategy.balance)
-        strategy.store['_evaluated_balance'] = strategy.balance.evaluate(strategy.trader.exchange, strategy.currency)
+        evaluated_balance = strategy.balance.evaluate(strategy.trader.exchange, strategy.currency)
+        strategy.store['_evaluated_balance'] = evaluated_balance
         
         # record store
         strategy.store_history[now] = copy.deepcopy(strategy.store)

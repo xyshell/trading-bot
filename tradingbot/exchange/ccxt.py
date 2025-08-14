@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 
 import ccxt
@@ -8,6 +9,7 @@ from retry import retry
 
 import tradingbot as tb
 import tradingbot.util as util
+from tradingbot.util import PosFloat
 from tradingbot.exchange.core import RealExchange
 from tradingbot.position import Position
 from tradingbot.transaction import Transaction
@@ -36,7 +38,11 @@ class CCXTExchange(RealExchange):
         USDT/BTC -> BTC/USDT
         USDT/BTC:USDT-250404 -> BTC/USDT:USDT-250404
         """
-        return "/".join(ticker.split(":")[0].split("/")[::-1])
+        if ":" in ticker:
+            left, right = ticker.split(":")
+            return ":".join(["/".join(left.split("/")[::-1]), right])
+        else:
+            return "/".join(ticker.split("/")[::-1])
 
     @functools.lru_cache(maxsize=128)
     def get_price(self, ticker: str, now: pd.Timestamp) -> float:
@@ -66,14 +72,36 @@ class CCXTExchange(RealExchange):
         import ccxt
 
         symbol = self.get_symbol(order.ticker)
+        action = order.action
         type = order.type.value
-        side = order.action.value
         amount = order.amount
         price = order.param.get("price")
-    
+
+        params = {}
+        if action in {Order.Action.BUY, Order.Action.SELL}:  # spot order
+            side = action.value
+        else:  # derivative order
+            params["tdMode"] = "isolated"
+            if action is Order.Action.OPEN_LONG:
+                side = "buy"
+                params["posSide"] = "long"
+                params["reduceOnly"] = False
+            elif action is Order.Action.CLOSE_LONG:
+                side = "sell"
+                params["posSide"] = "long"
+                params["reduceOnly"] = True
+            elif action is Order.Action.OPEN_SHORT:
+                side = "sell"
+                params["posSide"] = "short"
+                params["reduceOnly"] = False
+            elif action is Order.Action.CLOSE_SHORT:
+                side = "buy"
+                params["posSide"] = "short"
+                params["reduceOnly"] = True
+
         try:
-            self.strategy.logger.debug(f"Calling client.create_order('{symbol}', '{type}', '{side}', '{amount}')")
-            resp = self.client.create_order(symbol=symbol, type=type, side=side, amount=amount, price=price)
+            self.strategy.logger.debug(f"Calling client.create_order('{symbol}', '{type}', '{side}', '{amount}', '{params})")
+            resp = self.client.create_order(symbol=symbol, type=type, side=side, amount=amount, price=price, params=params)
         except Exception as e:
             order.status = Order.Status.REJECTED
             order.updated_at = self.strategy.now
@@ -107,6 +135,8 @@ class CCXTExchange(RealExchange):
     def update(self, order: Order) -> Order:
         if order.status is Order.Status.REJECTED:
             return order
+        markets = self.load_markets()
+        derivative_markets = {k: v for k, v in markets.items() if v["type"] in {"future", "swap", "option"}}
         symbol = self.get_symbol(order.ticker)
         info = self._safe_fetch_order(order.id_, symbol=symbol)
         order.updated_at = pd.Timestamp(info["timestamp"], unit="ms")
@@ -128,8 +158,20 @@ class CCXTExchange(RealExchange):
                 order.filled_at = pd.Timestamp(info["timestamp"], unit="ms")
                 
                 frm, to = self.get_frm_to(order)
-                frm_qty = info["cost"] if order.action is Order.Action.BUY else order.amount
-                to_qty = info["cost"] if order.action is Order.Action.SELL else order.amount
+                if order.action in {
+                    Order.Action.BUY, Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT
+                }:
+                    frm_qty = info["cost"]
+                    to_qty = order.amount
+                    if order.action in {Order.Action.OPEN_LONG, Order.Action.OPEN_SHORT}:
+                        frm_qty /= float(info["info"]["lever"])
+                else:  # SELL, CLOSE_LONG, CLOSE_SHORT
+                    frm_qty = order.amount
+                    to_qty = info["cost"]
+                    if order.action in {Order.Action.CLOSE_LONG, Order.Action.CLOSE_SHORT}:
+                        to_qty /= float(info["info"]["lever"])
+                        to_qty += float(info["info"]["pnl"])
+
                 trans = Transaction(
                     frm, frm_qty, 
                     to, to_qty, 
@@ -139,8 +181,43 @@ class CCXTExchange(RealExchange):
                     timestamp=self.strategy.now
                 )
                 self.strategy.transaction_history.append(trans)
-                self.strategy.balance[frm] -= frm_qty
-                self.strategy.balance[to] += to_qty
+                if frm in derivative_markets:
+                    pos_pair = self.strategy.balance[frm]
+                    pos = pos_pair[info["info"]["posSide"]]
+                    minus_pos = Position(
+                        ticker=order.ticker,
+                        side=order.side,
+                        amount=-order.amount,
+                        leverage=pos.leverage,
+                        entry_prc=info["average"],
+                        mark_prc=info["average"],
+                        margin=-pos.margin * order.amount / pos.amount,  # pro-rata margin
+                        fee=-pos.fee * order.amount / pos.amount,  # pro-rata fee
+                        created_at=self.strategy.now,
+                        updated_at=self.strategy.now,
+                        contract_size=derivative_markets[frm]["contractSize"],
+                    )
+                    self.strategy.balance.close_position(minus_pos)
+                else:  # spot
+                    self.strategy.balance[frm] -= frm_qty
+                if to in derivative_markets:
+                    pos_pair = self.strategy.balance[to]
+                    plus_pos = Position(
+                        ticker=order.ticker,
+                        side=order.side,
+                        amount=order.amount,
+                        leverage=info["info"]["lever"],
+                        entry_prc=info["average"],
+                        mark_prc=info["average"],
+                        margin=info["cost"] / float(info["info"]["lever"]),
+                        fee=info["fee"]["cost"],
+                        created_at=self.strategy.now,
+                        updated_at=self.strategy.now,
+                        contract_size=derivative_markets[to]["contractSize"],
+                    )
+                    self.strategy.balance.add_position(plus_pos)
+                else:  # spot
+                    self.strategy.balance[to] += to_qty
                 if order in self.strategy.order:
                     self.strategy.order.remove(order)
                 if order not in self.strategy.order_history:
@@ -188,33 +265,6 @@ class CCXTExchange(RealExchange):
         now = now or util.get_random_timestamp()
         balance = self.fetch_balance(now, **kwargs)[asset]
         return Position(asset=asset, qty=balance)
-
-    # def reflect_balance(self, now: pd.Timestamp, balance: Balance, ticker: str) -> Balance:
-    #     """
-    #     Args:
-    #         now (pd.Timestamp):
-    #         balance (Balance):
-    #         ticker (str): e.g. "USDT/BTC"
-    #     Returns:
-    #         Balance
-    #     """
-    #     balance = copy.deepcopy(balance)
-    #     quote_asset, base_asset = util.get_quote_asset(ticker), util.get_base_asset(ticker)
-    #     balance = self.client.fetch_balance({"ccy": base_asset})
-    #     base_info = balance.get(base_asset, {})
-
-    #     if base_total := base_info.get("total", 0):
-    #         prc = self.get_price(ticker, now)
-    #         base_detail = next((det for det in balance["info"]["data"][0]["details"] if det["ccy"] == base_asset), {})
-    #         base_pos = Position(asset=base_asset, qty=base_total, entry_prc=float(base_detail.get("openAvgPx", prc) or 0.0), market_prc_=prc)
-    #         quote_pos = Position(asset=quote_asset, qty=max(balance[quote_asset].qty - base_total * prc, 0.0))
-    #         balance[base_asset] = base_pos
-    #         balance[quote_asset] = quote_pos
-
-    #     return balance
-
-    # def ping(self) -> bool:
-    #     return "ok" in self.client.fetch_status()
 
     # ------------------------------------- wrapper methods -------------------------------------
     def fetch_balance(self, balance_type: str = "total") -> dict:
@@ -304,3 +354,31 @@ class CCXTExchange(RealExchange):
             return {}
         status = self._fetch_tickers(tuple(symbols), self.strategy.now)
         return {self.symbol2ticker[k]: v for k, v in status.items()}
+
+    def fetch_positions(self, tickers: list[str]) -> dict[str, dict[str, Position]]:
+        symbols = [self.ticker2symbol[ticker] for ticker in tickers]
+        positions = self.client.fetch_positions(symbols)
+        
+        res = defaultdict(dict)
+        for info in positions:
+            ticker = self.symbol2ticker[info["symbol"]]
+            res[ticker][info["side"]] = Position(
+                ticker=ticker,
+                side=info["side"],
+                amount=info["contracts"],
+                leverage=info["leverage"] or np.nan,
+                entry_prc=info["entryPrice"] or np.nan,
+                mark_prc=info["markPrice"] or np.nan,
+                margin=info["collateral"] or 0.0,
+                fee=abs(float(info["info"]["fee"] or 0.0)),
+                id_=info["id"],
+                created_at=pd.Timestamp(info["timestamp"], unit="ms"),
+                updated_at=pd.Timestamp(info["lastUpdateTimestamp"], unit="ms"),
+                contract_size=info["contractSize"],
+                liquidation_prc_=info["liquidationPrice"] or np.nan,
+                notional_=info["notional"] or np.nan
+            )
+        return res
+
+    def set_leverage(self, ticker: str, side: str, leverage: PosFloat) -> None:
+        self.client.set_leverage(leverage, self.get_symbol(ticker), params={"mgnMode": "isolated", "posSide": side})
