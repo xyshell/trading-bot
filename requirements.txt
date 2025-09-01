@@ -30,5 +30,5 @@ mplfinance==0.12.10b0  # optional
 # dev only
 pytest==8.3.5
 syrupy==4.9.1
-ruff==0.11.7
+ruff==0.12.11
 build==1.2.2.post1
