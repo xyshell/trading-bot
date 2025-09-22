@@ -7,14 +7,14 @@ dependencies = [
     "numpy >= 2.1, < 2.2",
     "pandas >= 2.2, < 2.3",
     "SQLAlchemy >= 2.0, < 2.1",
+    "pydantic-settings >= 2.2, < 2.11",
     "pydantic >= 2.10, < 2.12",
-    "pydantic-settings >= 2.2, < 2.3",
     "retry >= 0.9, <1.0",
     "psutil >= 6.1, < 6.2",
     "toml >= 0.10, <0.11",
     "fire >= 0.7, <0.8",
-    "streamlit >= 1.44, < 1.46",
-    "dask[complete] >= 2025.3.0, < 2025.4.0",
+    "streamlit >= 1.44, < 1.49",
+    "dask[complete] >= 2025.3.0, < 2025.8.0",
 ]
 name = "trading-bot"
 dynamic = ["version"]
@@ -41,7 +41,7 @@ classifiers = [
 dev = [
     "pytest >= 8.3, < 8.4",
     "syrupy >= 4.8, < 4.9",
-    "ruff >= 0.11, < 0.12",
+    "ruff >= 0.11, < 0.13",
     "build >= 1.2, < 1.3",
 ]
 
