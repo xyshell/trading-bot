@@ -16,7 +16,7 @@ psycopg2==2.9.10
 
 # data
 yfinance==0.2.55  # optional
-python-binance==1.0.28  # optional
+python-binance==1.0.29  # optional
 
 # exchange
 ccxt==4.4.78  # optional
